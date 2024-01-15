@@ -1,0 +1,33 @@
+name: srl02
+mgmt:
+  network: netlan
+  bridge: br-clab2
+
+topology:
+  nodes:
+    srl1:
+      kind: nokia_srlinux
+      image: ghcr.io/nokia/srlinux:23.10.1
+      type: ixrd3
+      startup-config: srl1.cfg
+    srl2:
+      kind: nokia_srlinux
+      image: ghcr.io/nokia/srlinux:23.10.1
+      type: ixrd3
+      startup-config: srl2.cfg
+    router1:
+      kind: linux
+      image: quay.io/frrouting/frr:8.4.1
+      binds:
+        - router1/daemons:/etc/frr/daemons
+        - router1/frr.conf:/etc/frr/frr.conf
+      exec:
+       - "sysctl -w net.ipv6.conf.all.forwarding=1"  
+
+    br-clab2:
+      kind: bridge    
+
+  links:
+    - endpoints: ["br-clab2:eth1", "srl1:e1-1"]
+    - endpoints: ["br-clab2:eth2", "srl2:e1-1"]
+    - endpoints: ["br-clab2:eth3", "router1:eth1"]
