@@ -1,0 +1,32 @@
+system {
+        ra-guard-policy "Discard all" {
+            action discard
+        }
+    }
+interface ethernet-1/1 {
+        subinterface 0 {
+            ra-guard {
+                policy "Discard all"
+            }
+        }
+    }
+
+
+
+interface ethernet-1/1 {
+    admin-state enable
+    subinterface 0 {
+        ipv6 {
+            admin-state enable
+            address 2001:db8:cccc:1::1/64 {
+            }
+        }
+    }
+}
+
+
+network-instance default {
+    interface ethernet-1/1.0 {
+    }
+    
+}
