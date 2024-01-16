@@ -1,7 +1,5 @@
 name: srl02
-mgmt:
-  network: netlan2
-  bridge: br-clab3
+
 
 topology:
   nodes:
