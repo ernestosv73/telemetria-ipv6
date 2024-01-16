@@ -25,7 +25,7 @@ topology:
        - "sysctl -w net.ipv6.conf.all.forwarding=1"  
 
     br-clab3:
-      kind: bridge    
+      kind: ovs-bridge    
 
   links:
     - endpoints: ["br-clab3:eth1", "srl1:e1-1.0"]
