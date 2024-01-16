@@ -1,5 +1,6 @@
 name: srl02
-
+mgmt:
+  bridge: br-clab3
 
 topology:
   nodes:
