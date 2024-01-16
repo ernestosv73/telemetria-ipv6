@@ -28,6 +28,6 @@ topology:
       kind: bridge    
 
   links:
-    - endpoints: ["br-clab3:eth1", "srl1:e1-1"]
+    - endpoints: ["br-clab3:eth1", "srl1:e1-1.0"]
     - endpoints: ["br-clab3:eth2", "srl2:e1-1"]
     - endpoints: ["br-clab3:eth3", "router1:eth1"]
