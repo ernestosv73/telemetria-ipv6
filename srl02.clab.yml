@@ -1,5 +1,7 @@
 name: srl02
-
+mgmt:
+  network: netlan2
+  bridge: br-clab3
   
 topology:
   nodes:
@@ -27,8 +29,11 @@ topology:
       exec:
       - ip -6 route del default dev eth0   
 
-   
+    br-clab3:
+      kind: bridge 
 
   links:
-    - endpoints: ["router1:eth1", "srl1:e1-1"]
+    - endpoints: ["br-clab3:eth1", "srl1:e1-1"] 
+    - endpoints: ["br-clab3:eth2", "srl2:e1-1"]
+    - endpoints: ["br-clab3:eth3", "router1:eth1"]
    
