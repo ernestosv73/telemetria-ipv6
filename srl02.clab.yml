@@ -1,7 +1,5 @@
 name: srl02
-mgmt:
-  network: netlan2
-  bridge: br-clab3
+
   
 topology:
   nodes:
@@ -22,12 +20,15 @@ topology:
         - router1/daemons:/etc/frr/daemons
         - router1/frr.conf:/etc/frr/frr.conf
       exec:
-       - "sysctl -w net.ipv6.conf.all.forwarding=1"  
+       - "sysctl -w net.ipv6.conf.all.forwarding=1"
+    PC3:
+      kind: linux
+      image: praqma/network-multitool:extra
+      exec:
+      - ip -6 route del default dev eth0   
 
-    br-clab3:
-      kind: bridge    
+   
 
   links:
-    - endpoints: ["br-clab3:eth1", "srl1:e1-1"]
-    - endpoints: ["br-clab3:eth2", "srl2:e1-1"]
-    - endpoints: ["br-clab3:eth3", "router1:eth1"]
+    - endpoints: ["router1:eth1", "srl1:e1-1"]
+   
