@@ -1,12 +1,15 @@
 system {
-        ra-guard-policy "Discard all" {
-            action discard
+        ra-guard-policy "rag1" {
+            action accept
+            advertise-prefix-set 2001:db8:bbbb:1::/64
+            source-prefix-set 2001:db8:bbbb:1::1/64
+
         }
     }
 interface ethernet-1/1 {
         subinterface 0 {
             ra-guard {
-                policy "Discard all"
+                policy "rag1"
             }
         }
     }
