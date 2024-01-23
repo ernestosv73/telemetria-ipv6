@@ -35,5 +35,6 @@ topology:
   links:
     - endpoints: ["br-clab3:eth1", "srl1:e1-1"]
     - endpoints: ["br-clab3:eth2", "srl2:e1-1"]
-    - endpoints: ["br-clab3:eth3", "PC1:eth1"]
+    - endpoints: ["br-clab3:eth3", "srl2:e1-2"]
+    - endpoints: ["br-clab3:eth4", "PC1:eth1"]
      
