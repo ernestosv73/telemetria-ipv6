@@ -10,11 +10,7 @@ topology:
       image: ghcr.io/nokia/srlinux:23.10.1
       type: ixrd3
       startup-config: srl1.cfg
-    srl2:
-      kind: nokia_srlinux
-      image: ghcr.io/nokia/srlinux:23.10.1
-      type: ixrd3
-      startup-config: srl2.cfg
+    
     router1:
       kind: linux
       image: quay.io/frrouting/frr:8.4.1
@@ -29,12 +25,18 @@ topology:
       exec:
       - ip -6 route del default dev eth0
 
+    PC3:
+      kind: linux
+      image: praqma/network-multitool:extra
+      exec:
+      - ip -6 route del default dev eth0  
+
     br-clab3:
       kind: bridge 
 
   links:
     - endpoints: ["br-clab3:eth1", "srl1:e1-1"]
-    - endpoints: ["br-clab3:eth2", "srl2:e1-1"]
+    - endpoints: ["br-clab3:eth2", "PC3:eth1"]
     - endpoints: ["br-clab3:eth3", "router1:eth1"]
     - endpoints: ["br-clab3:eth4", "PC1:eth1"]
      
