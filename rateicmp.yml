@@ -4,14 +4,14 @@ name: ratelimit
 topology:
   nodes:
     # Nokia SRL Linux funcionando como dispositivo de capa 2
-    srl1:
+    srlswitch:
       kind: nokia_srlinux
       image: ghcr.io/nokia/srlinux:24.10.1
       type: ixrd3
       startup-config: switch/config.json
       
     # Nokia SRL Linux funcionando como router
-    srl2:
+    srlrouter:
       kind: nokia_srlinux
       image: ghcr.io/nokia/srlinux:24.10.1
       type: ixrd3
