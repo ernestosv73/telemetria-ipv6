@@ -3,14 +3,14 @@ name: ratelimit
   
 topology:
   nodes:
-    # Nokia SRL Linux funcionando como dispositivo de capa 2
+    # Nokia SRL Linux Layer 2 Device
     srlswitch:
       kind: nokia_srlinux
       image: ghcr.io/nokia/srlinux:24.10.1
       type: ixrd3
       startup-config: switch/config.json
       
-    # Nokia SRL Linux funcionando como router
+    # Nokia SRL Linux Router
     srlrouter:
       kind: nokia_srlinux
       image: ghcr.io/nokia/srlinux:24.10.1
@@ -21,14 +21,14 @@ topology:
            
     PC1:
       kind: linux
-      image: docker.io/esanchezv/kaliipv6v2.1:v2
+      image: docker.io/esanchezv/kaliipv6v2.1:latest
       exec:
       - ip -6 route del default dev eth0
       
         
     PC2:
       kind: linux
-      image: docker.io/esanchezv/kaliipv6v2.1:v2
+      image: docker.io/esanchezv/kaliipv6v2.1:latest
       exec:
       - ip -6 route del default dev eth0  
 
