@@ -16,27 +16,33 @@ topology:
       image: ghcr.io/nokia/srlinux:24.10.1
       type: ixrd3
       startup-config: router/config.json
+      exec:
+        - "sysctl -w net.ipv6.conf.e1-1.accept_ra=0" 
            
     PC1:
       kind: linux
-      image: docker.io/esanchezv/kaliipv6v2.2:latest
+      image: docker.io/esanchezv/kaliipv6v2.1:v2
       exec:
       - ip -6 route del default dev eth0
       
         
     PC2:
       kind: linux
-      image: docker.io/esanchezv/kaliipv6v2.2:latest
+      image: docker.io/esanchezv/kaliipv6v2.1:v2
       exec:
       - ip -6 route del default dev eth0  
 
     PC3:
       kind: linux
-      image: docker.io/esanchezv/kaliipv6v2.2:latest
+      image: docker.io/esanchezv/kaliipv6v2.1:latest
       exec:
       - ip -6 route del default dev eth0
       
-
+    PC4:
+      kind: linux
+      image: docker.io/esanchezv/kaliipv6v2.1:latest
+      exec:
+      - ip -6 route del default dev eth0
     
   links:
     - endpoints: ["srl2:e1-1", "srl1:e1-1"]
@@ -47,5 +53,7 @@ topology:
       mtu: 1500
     - endpoints: ["PC3:eth1", "srl1:e1-4"]
       mtu: 1500
+    - endpoints: ["PC4:eth1", "srl1:e1-5"]
+      mtu: 1500  
     
      
