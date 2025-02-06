@@ -10,6 +10,7 @@ topology:
       type: ixrd3
       startup-config: switch/config.json
       sysctls:
+        net.ipv6.icmp.ratelimit: 100
         net.ipv6.icmp.ratemask: 0-1,3-137
 
       
