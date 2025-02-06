@@ -9,6 +9,9 @@ topology:
       image: ghcr.io/nokia/srlinux:24.10.1
       type: ixrd3
       startup-config: switch/config.json
+      sysctls:
+        net.ipv6.icmp.ratemask: 0-1,3-137
+
       
     # Nokia SRL Linux Router
     srlrouter:
