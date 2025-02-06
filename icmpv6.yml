@@ -9,9 +9,7 @@ topology:
       image: ghcr.io/nokia/srlinux:24.10.1
       type: ixrd3
       startup-config: switch/config.json
-      sysctls:
-        net.ipv6.icmp.ratelimit: 10000
-        net.ipv6.icmp.ratemask: 0-1,3-137
+      
 
       
     # Nokia SRL Linux Router
@@ -22,9 +20,7 @@ topology:
       startup-config: router/config.json
       exec:
         - "sysctl -w net.ipv6.conf.e1-1.accept_ra=0"
-      sysctls:
-        net.ipv6.icmp.ratelimit: 10000
-        net.ipv6.icmp.ratemask: 0-1,3-137  
+      
            
     PC1:
       kind: linux
