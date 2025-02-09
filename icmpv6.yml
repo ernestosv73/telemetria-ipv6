@@ -6,18 +6,18 @@ topology:
     # Nokia SRL Linux Layer 2 Device
     srlswitch:
       kind: nokia_srlinux
-      image: ghcr.io/nokia/srlinux:24.10.1
+      image: ghcr.io/nokia/srlinux:23.10.1
       type: ixrd1
-      startup-config: switch/config.json
+      #startup-config: switch/config.json
       
 
       
     # Nokia SRL Linux Router
     srlrouter:
       kind: nokia_srlinux
-      image: ghcr.io/nokia/srlinux:24.10.1
+      image: ghcr.io/nokia/srlinux:23.10.1
       type: ixrd1
-      startup-config: router/config.json
+      #startup-config: router/config.json
       exec:
         - "sysctl -w net.ipv6.conf.e1-1.accept_ra=0"
       
