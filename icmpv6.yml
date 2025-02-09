@@ -7,7 +7,7 @@ topology:
     srlswitch:
       kind: nokia_srlinux
       image: ghcr.io/nokia/srlinux:24.10.1
-      type: ixrd3
+      type: ixrd1
       startup-config: switch/config.json
       
 
@@ -16,7 +16,7 @@ topology:
     srlrouter:
       kind: nokia_srlinux
       image: ghcr.io/nokia/srlinux:24.10.1
-      type: ixrd3
+      type: ixrd1
       startup-config: router/config.json
       exec:
         - "sysctl -w net.ipv6.conf.e1-1.accept_ra=0"
