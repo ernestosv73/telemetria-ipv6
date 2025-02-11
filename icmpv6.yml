@@ -60,7 +60,7 @@ topology:
     
   links:
     - endpoints: ["srlrouter:e1-1", "srlswitch:e1-1"]
-      #mtu: 1500
+    - endpoints: ["srlrouter:e1-2", "srvweb:eth1"]
     - endpoints: ["PC1:eth1", "srlswitch:e1-2"]
       mtu: 1500
     - endpoints: ["PC2:eth1", "srlswitch:e1-3"]
