@@ -21,7 +21,18 @@ topology:
       exec:
         - "sysctl -w net.ipv6.conf.e1-1.accept_ra=0"
       
-           
+    srvweb:
+      kind: linux
+      image: docker.io/esanchezv/srvhttps:latest
+      binds:
+       - configs/serverweb.sh:/root/serverweb.sh
+       - configs/web-server.html:/var/www/localhost/htdocs/index.html
+       - configs/srl-elk-lab-main.zip:/var/www/localhost/htdocs/srl-elk-lab-main.zip
+      exec:
+       - nginx
+       - ip -6 route del default dev eth0
+       - ip -6 addr add 2001:db8:d1::50/64 dev eth1       
+    
     PC1:
       kind: linux
       image: docker.io/esanchezv/kaliipv6v2.1:latest
