@@ -27,7 +27,7 @@ topology:
       binds:
        - configs/serverweb.sh:/root/serverweb.sh
        - configs/web-server.html:/var/www/localhost/htdocs/index.html
-       - configs/srl-elk-lab-main.zip:/var/www/localhost/htdocs/srl-elk-lab-main.zip
+       - configs/webinar-ipv6-lacnic-parte1y2.pdf:/var/www/localhost/htdocs/webinar-ipv6-lacnic-parte1y2.pdf
       exec:
        - nginx
        - ip -6 route del default dev eth0
