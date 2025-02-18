@@ -56,7 +56,7 @@ topology:
       
     PC4:
       kind: linux
-      image: linton/docker-snort:latest
+      image: esanchezv/snort3:latest
       exec:
       - ip -6 route del default dev eth0
       
