@@ -56,9 +56,12 @@ topology:
       
     PC4:
       kind: linux
-      image: docker.io/esanchezv/kaliipv6v2.1:latest
+      image: hsnl/snort-io:latest 
       exec:
       - ip -6 route del default dev eth0
+      ports:
+        - 9292:9292/tcp
+        
     
   links:
     - endpoints: ["srlrouter:e1-1", "srlswitch:e1-1"]
