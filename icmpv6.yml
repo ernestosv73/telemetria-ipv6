@@ -38,8 +38,8 @@ topology:
       mgmt-ipv4: 172.20.20.10 
       image: docker.io/esanchezv/suricatafilebeatv1:v2
       binds:
-       - config/local.rules:/var/lib/suricata/rules/local.rules
-       - config/rsyslog.conf:/etc/rsyslog.conf
+       - configs/local.rules:/var/lib/suricata/rules/local.rules
+       - configs/rsyslog.conf:/etc/rsyslog.conf
       exec:
       #- ip -6 route del default dev eth0
       - "sysctl -w net.ipv6.conf.eth1.accept_ra=0"
