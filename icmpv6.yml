@@ -82,6 +82,8 @@ topology:
     - endpoints: ["PC3:eth1", "srlswitch:e1-4"]
       mtu: 1500
     - endpoints: ["PC4:eth1", "srlswitch:e1-5"]
-      mtu: 1500  
+      mtu: 1500
+    - endpoints: ["suricata:eth1", "srlswitch:e1-6"]
+      mtu: 1500    
     
      
