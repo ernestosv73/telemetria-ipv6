@@ -1,5 +1,7 @@
 name: icmpv6sec
-
+mgmt:
+  network: st
+  ipv4-subnet: 172.80.80.0/24
   
 topology:
   nodes:
@@ -35,7 +37,7 @@ topology:
 
     suricata:
       kind: linux
-      mgmt-ipv4: 172.20.20.10 
+      mgmt-ipv4: 172.80.80.10 
       image: docker.io/esanchezv/suricatafilebeatv1:v2
       binds:
        - configs/local.rules:/var/lib/suricata/rules/local.rules
