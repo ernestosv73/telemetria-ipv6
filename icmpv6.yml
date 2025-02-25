@@ -51,7 +51,7 @@ topology:
     ntopng:
       kind: linux
       mgmt-ipv4: 172.80.80.9 
-      image: docker.io/esanchezv/ntopng:latest
+      image: ntopng-ntopng:latest
       binds:
        #- ./config/ntopng.conf:/etc/ntopng/ntopng.conf        
        - /home/ernesto/ntopng/data/ntopng:/var/lib/ntopng
