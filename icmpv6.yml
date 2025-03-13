@@ -22,7 +22,7 @@ topology:
       exec:
         - "sysctl -w net.ipv6.conf.e1-1.accept_ra=0"
       
-     srvweb:
+    srvweb:
        kind: linux
        image: docker.io/esanchezv/srvhttps:latest
        binds:
