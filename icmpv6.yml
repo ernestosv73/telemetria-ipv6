@@ -26,14 +26,13 @@ topology:
        kind: linux
        image: docker.io/esanchezv/srvhttps:latest
        binds:
-        - configs/serverweb.sh:/root/serverweb.sh
-        - configs/web-server.html:/var/www/localhost/htdocs/index.html
-       #- configs/webinar-ipv6-lacnic-parte1y2.zip:/var/www/localhost/htdocs/webinar-ipv6-lacnic-parte1y2.zip
+        #- config/serverweb.sh:/root/serverweb.sh
+        - config/web-server.html:/var/www/localhost/htdocs/index.html
        exec:
-        - nginx
-        - ip -6 route del default dev eth0
+       #- nginx
+       #- ip -6 route del default dev eth0
         - ip -6 addr add 2001:db8:d1::50/64 dev eth1
-        - ip -6 route add 2001:db8:20::/64 via 2001:db8:d1::1
+        - ip -6 route add 2001:db8:20::/64 via 2001:db8:d1::1    
 
     suricata:
       kind: linux
@@ -79,20 +78,20 @@ topology:
     PC1:
       kind: linux
       image: docker.io/esanchezv/kaliipv6:latest
-      exec:
-      - ip -6 route del default dev eth0
+      #exec:
+      #- ip -6 route del default dev eth0
               
     PC2:
       kind: linux
       image: docker.io/esanchezv/kaliipv6:latest
-      exec:
-      - ip -6 route del default dev eth0  
+      #exec:
+      #- ip -6 route del default dev eth0  
 
     PC3:
       kind: linux
-      image: docker.io/esanchezv/kaliipv6:latest
-      exec:
-      - ip -6 route del default dev eth0
+      image: ghcr.io/hellt/network-multitool
+      #exec:
+      #- ip -6 route del default dev eth0
       
            
     
