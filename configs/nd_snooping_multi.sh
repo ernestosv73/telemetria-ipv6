@@ -4,7 +4,7 @@
 INTERFACES=("ethernet-1/2.0" "ethernet-1/3.0" "ethernet-1/4.0" "ethernet-1/5.0")
 
 # Archivos
-BINDING_FILE="/etc/acl/bindings.json"
+BINDING_FILE="/root/bindings.json"
 TMP_DIR="/tmp/nd_snoop"
 mkdir -p "$TMP_DIR"
 
