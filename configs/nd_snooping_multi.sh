@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Interfaces a monitorear
-INTERFACES=("ethernet-1/2.0" "ethernet-1/3.0" "ethernet-1/4.0" "ethernet-1/5.0")
+INTERFACES=("e1-2" "e1-3" "e1-4" "e1-5")
 
 # Archivos
 BINDING_FILE="/root/bindings.json"
