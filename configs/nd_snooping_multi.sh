@@ -34,16 +34,19 @@ for IFACE in "${INTERFACES[@]}"; do
     INTF="$IFACE"
 
     while read -r line; do
-        if [[ "$line" =~ ^([0-9a-f:]{17})\ >\ ([0-9a-f:]{17}).* ]]; then
+        # Extraer MAC Address
+        if [[ "$line" =~ ([0-9a-f]{2}(:[0-9a-f]{2}){5})\  >\  ([0-9a-f]{2}(:[0-9a-f]{2}){5}) ]]; then
             SRC_MAC="${BASH_REMATCH[1]}"
         fi
 
-        if [[ "$line" =~ ICMP6,\ neighbor\ (solicitation|advertisement).*\ who\ has\ ([0-9a-f:]+::[0-9a-f:]+) ]]; then
+        # Extraer IPv6 Address en Solicitud o Respuesta
+        if [[ "$line" =~ ICMP6,\ neighbor\ (solicitation|advertisement).*who\ has\ ([0-9a-f:]+) ]]; then
             IPV6="${BASH_REMATCH[2]}"
-        elif [[ "$line" =~ ICMP6,\ neighbor\ advertisement.*\ target\ ([0-9a-f:]+::[0-9a-f:]+) ]]; then
+        elif [[ "$line" =~ ICMP6,\ neighbor\ advertisement.*\ target\ ([0-9a-f:]+) ]]; then
             IPV6="${BASH_REMATCH[1]}"
         fi
 
+        # Si ambos valores están presentes, los guardamos
         if [[ -n "$SRC_MAC" && -n "$IPV6" ]]; then
             # Verificar si ya existe
             EXISTS=$(jq --arg ip "$IPV6" '.bindings[] | select(.ipv6 == $ip)' "$BINDING_FILE")
