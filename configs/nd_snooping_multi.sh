@@ -26,8 +26,9 @@ for IFACE in "${INTERFACES[@]}"; do
     FILE="$TMP_DIR/$IFACE.pcap"
     INTF="$IFACE"
 
+    # Lectura de paquetes con más depuración
     tcpdump -nn -r "$FILE" 'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' -e | while read -r line; do
-        echo "Procesando paquete: $line"  # Depuración: Imprimir cada línea capturada
+        echo "[*] Paquete capturado: $line"  # Agregamos más depuración para ver el contenido del paquete
 
         if [[ "$line" =~ ([0-9a-f:]{17})\  >\ 33:33:ff:([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2}) ]]; then
             SRC_MAC="${BASH_REMATCH[1]}"
