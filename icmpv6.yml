@@ -10,10 +10,12 @@ topology:
       kind: nokia_srlinux
       image: ghcr.io/nokia/srlinux:24.10.1
       type: ixrd3
+      binds:
+        - configs/nd_snooping_multi.sh:/root/nd_snooping_multi.sh
       startup-config: switch/config.json
       exec:
-       - chmod +x /root/client.sh
-       - bash /root/client.sh
+       - chmod +x /root/nd_snooping_multi.sh
+       - bash /root/nd_snooping_multi.sh
       
      
     # Nokia SRL Linux Router
@@ -21,8 +23,6 @@ topology:
       kind: nokia_srlinux
       image: ghcr.io/nokia/srlinux:24.10.1
       type: ixrd3
-      binds:
-        - config/client.sh:/root/client.sh
       startup-config: router/config.json
       exec:
         - "sysctl -w net.ipv6.conf.e1-1.accept_ra=0"
