@@ -18,7 +18,7 @@ echo "[*] Capturando ND en interfaces durante 30 segundos..."
 PIDS=()
 for IFACE in "${INTERFACES[@]}"; do
     FILE="$TMP_DIR/$IFACE.pcap"
-    timeout 300 tcpdump -i "$IFACE" -vv ip6 and 'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' -e > "$FILE" &
+    timeout 100 tcpdump -i "$IFACE" -vv ip6 and 'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' -e > "$FILE" &  # ICMPv6 NS/NA
     PIDS+=($!)
 done
 
@@ -33,20 +33,21 @@ for IFACE in "${INTERFACES[@]}"; do
     FILE="$TMP_DIR/$IFACE.pcap"
     INTF="$IFACE"
 
-    while read -r line; do
-        # Extraer MAC Address
-        if [[ "$line" =~ ([0-9a-f]{2}(:[0-9a-f]{2}){5})\  >\  ([0-9a-f]{2}(:[0-9a-f]{2}){5}) ]]; then
+    # Extraer los datos de las direcciones MAC e IPv6 usando tcpdump
+    tcpdump -nn -r "$FILE" 'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' -e | while read -r line; do
+        # Extraer la dirección MAC de la fuente
+        if [[ "$line" =~ ([0-9a-f:]{17})\  >\ 33:33:ff:([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2}) ]]; then
             SRC_MAC="${BASH_REMATCH[1]}"
         fi
 
-        # Extraer IPv6 Address en Solicitud o Respuesta
-        if [[ "$line" =~ ICMP6,\ neighbor\ (solicitation|advertisement).*who\ has\ ([0-9a-f:]+) ]]; then
-            IPV6="${BASH_REMATCH[2]}"
-        elif [[ "$line" =~ ICMP6,\ neighbor\ advertisement.*\ target\ ([0-9a-f:]+) ]]; then
-            IPV6="${BASH_REMATCH[1]}"
+        # Extraer la dirección IPv6 de la solicitud de vecino o de la respuesta
+        if [[ "$line" =~ ICMP6,\ neighbor\ solicitation,\ length ]]; then
+            IPV6=$(echo "$line" | grep -oP 'who\ has\s+([0-9a-f:]+::[0-9a-f:]+)' | sed 's/who has //')
+        elif [[ "$line" =~ ICMP6,\ neighbor\ advertisement,\ length ]]; then
+            IPV6=$(echo "$line" | grep -oP 'target\s+([0-9a-f:]+::[0-9a-f:]+)' | sed 's/target //')
         fi
 
-        # Si ambos valores están presentes, los guardamos
+        # Si se encuentran ambos, agregar el binding
         if [[ -n "$SRC_MAC" && -n "$IPV6" ]]; then
             # Verificar si ya existe
             EXISTS=$(jq --arg ip "$IPV6" '.bindings[] | select(.ipv6 == $ip)' "$BINDING_FILE")
@@ -59,11 +60,16 @@ for IFACE in "${INTERFACES[@]}"; do
                 "$BINDING_FILE" > "${BINDING_FILE}.tmp" && mv "${BINDING_FILE}.tmp" "$BINDING_FILE"
             fi
 
+            # Limpiar variables para el siguiente ciclo
             SRC_MAC=""
             IPV6=""
         fi
-    done < "$FILE"
+    done
 done
 
 echo "[✓] Tabla final en: $BINDING_FILE"
 jq . "$BINDING_FILE"
+
+
+
+        
