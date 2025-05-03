@@ -9,11 +9,11 @@ if [ ! -f "$BINDING_FILE" ]; then
     echo '{"bindings": []}' > "$BINDING_FILE"
 fi
 
-echo "[*] Capturando ND en interfaces durante 60 segundos..."
+echo "[*] Capturando mensajes ND (NS/NA) durante 30 segundos..."
 PIDS=()
 for IFACE in "${INTERFACES[@]}"; do
     FILE="$TMP_DIR/$IFACE.pcap"
-    timeout 60 tcpdump -i "$IFACE" -vv -w "$FILE" 'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' &
+    timeout 30 tcpdump -i "$IFACE" -nn -e -vv ip6 and 'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' > "$FILE" &
     PIDS+=($!)
 done
 
@@ -22,56 +22,47 @@ for PID in "${PIDS[@]}"; do
 done
 
 echo "[*] Procesando paquetes ND..."
+
 for IFACE in "${INTERFACES[@]}"; do
     FILE="$TMP_DIR/$IFACE.pcap"
     INTF="$IFACE"
-    
-    # Extraer información completa con tcpdump
-    tcpdump -nn -v -e -r "$FILE" 2>/dev/null | while read -r line; do
-        mac=""
-        ipv6=""
-        
-        # Extraer MAC origen (formato tcpdump con -e)
-        if [[ "$line" =~ ([0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}).* > ]]; then
-            mac="${BASH_REMATCH[1]}"
+    SRC_MAC=""
+    IPV6=""
+
+    while read -r line; do
+        # Detectar y guardar MAC origen
+        if [[ "$line" =~ ^[0-9:.]+\ ([0-9a-f:]{17})\ > ]]; then
+            SRC_MAC="${BASH_REMATCH[1]}"
         fi
 
-        # Extraer IPv6 para Neighbor Solicitation
-        if [[ "$line" =~ "ICMP6, neighbor solicitation" && "$line" =~ "who has ([0-9a-fA-F:]+)" ]]; then
-            ipv6="${BASH_REMATCH[1]}"
-            echo "DEBUG [NS]: MAC=$mac -> IPv6=$ipv6" >&2
+        # Extraer IPv6 en NS (who has ...)
+        if [[ "$line" =~ who\ has\ ([0-9a-f:]+) ]]; then
+            IPV6="${BASH_REMATCH[1]}"
         fi
 
-        # Extraer IPv6 para Neighbor Advertisement
-        if [[ "$line" =~ "ICMP6, neighbor advertisement" && "$line" =~ "tgt is ([0-9a-fA-F:]+)" ]]; then
-            ipv6="${BASH_REMATCH[1]}"
-            # Extraer MAC de la opción link-layer
-            if [[ "$line" =~ "([0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2})" ]]; then
-                mac="${BASH_REMATCH[1]}"
-            fi
-            echo "DEBUG [NA]: MAC=$mac -> IPv6=$ipv6" >&2
+        # Extraer IPv6 en NA (tgt is ...)
+        if [[ "$line" =~ tgt\ is\ ([0-9a-f:]+) ]]; then
+            IPV6="${BASH_REMATCH[1]}"
         fi
 
-        # Solo procesar si tenemos ambos valores
-        if [[ -n "$mac" && -n "$ipv6" ]]; then
-            echo "[+] Binding encontrado: $ipv6 -> $mac en $INTF"
-            
-            # Normalizar formato
-            mac=$(echo "$mac" | tr '[:upper:]' '[:lower:]')
-            ipv6=$(echo "$ipv6" | tr '[:upper:]' '[:lower:]')
+        # Agregar a tabla si tenemos ambos
+        if [[ -n "$SRC_MAC" && -n "$IPV6" ]]; then
+            echo "Binding encontrado: $IPV6 -> $SRC_MAC"
 
-            # Verificar si ya existe
-            EXISTS=$(jq --arg ip "$ipv6" '.bindings[] | select(.ipv6 == $ip)' "$BINDING_FILE")
-            
+            EXISTS=$(jq --arg ip "$IPV6" '.bindings[] | select(.ipv6 == $ip)' "$BINDING_FILE")
             if [ -z "$EXISTS" ]; then
                 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-                jq --arg mac "$mac" --arg ip "$ipv6" --arg intf "$INTF" --arg ts "$TIMESTAMP" \
+                jq --arg mac "$SRC_MAC" --arg ip "$IPV6" --arg intf "$INTF" --arg ts "$TIMESTAMP" \
                    '.bindings += [{"mac": $mac, "ipv6": $ip, "interface": $intf, "timestamp": $ts}]' \
                    "$BINDING_FILE" > "${BINDING_FILE}.tmp" && mv "${BINDING_FILE}.tmp" "$BINDING_FILE"
             fi
+
+            SRC_MAC=""
+            IPV6=""
         fi
-    done
+
+    done < "$FILE"
 done
 
-echo "[✓] Tabla final en: $BINDING_FILE"
+echo "[✓] Tabla final creada en: $BINDING_FILE"
 jq . "$BINDING_FILE"
