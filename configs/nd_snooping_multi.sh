@@ -26,42 +26,45 @@ for IFACE in "${INTERFACES[@]}"; do
     FILE="$TMP_DIR/$IFACE.pcap"
     INTF="$IFACE"
 
-    # Procesar archivos pcap con tshark para mejor análisis
-    tshark -r "$FILE" -T fields -E separator=, -E quote=d \
-        -e frame.time -e eth.src -e ipv6.src -e ipv6.dst -e icmpv6.type -e icmpv6.na.target -e icmpv6.ns.target_address \
-        -e _ws.col.Info 2>/dev/null | while IFS=, read -r timestamp src_mac ipv6_src ipv6_dst icmp_type na_target ns_target info; do
-        
-        # Determinar tipo de mensaje y extraer información relevante
-        case $icmp_type in
-            135) # Neighbor Solicitation
-                target="$ns_target"
-                mac="$src_mac"
-                ;;
-            136) # Neighbor Advertisement
-                target="$na_target"
-                # En NA, la MAC está en una opción que no capturamos, usar src_mac (puede no ser fiable)
-                mac="$src_mac"
-                ;;
-            *) continue ;;
-        esac
+    # Procesar con tcpdump en modo legible
+    tcpdump -nn -v -r "$FILE" 2>/dev/null | while read -r line; do
+        # Extraer MAC origen
+        if [[ "$line" =~ ([0-9a-fA-F:]{17})\ > ]]; then
+            mac="${BASH_REMATCH[1]}"
+        fi
 
-        # Validar y limpiar datos
-        mac=$(echo "$mac" | tr -d '"' | awk '{print tolower($0)}')
-        target=$(echo "$target" | tr -d '"' | awk '{print tolower($0)}')
+        # Extraer IPv6 según tipo de mensaje
+        if [[ "$line" =~ "ICMP6, neighbor solicitation" ]]; then
+            if [[ "$line" =~ "who has ([0-9a-fA-F:]+)" ]]; then
+                ipv6="${BASH_REMATCH[1]}"
+            fi
+        elif [[ "$line" =~ "ICMP6, neighbor advertisement" ]]; then
+            if [[ "$line" =~ "tgt is ([0-9a-fA-F:]+)" ]]; then
+                ipv6="${BASH_REMATCH[1]}"
+            fi
+        fi
 
-        # Solo procesar si tenemos ambos valores
-        if [[ -n "$mac" && -n "$target" ]]; then
-            echo "[+] Binding encontrado: $target -> $mac en $INTF"
+        # Si tenemos ambos valores, procesar
+        if [[ -n "$mac" && -n "$ipv6" ]]; then
+            echo "[+] Binding encontrado: $ipv6 -> $mac en $INTF"
+            
+            # Convertir a formato estándar
+            mac=$(echo "$mac" | tr '[:upper:]' '[:lower:]')
+            ipv6=$(echo "$ipv6" | tr '[:upper:]' '[:lower:]')
 
-            # Verificar si ya existe en el archivo
-            EXISTS=$(jq --arg ip "$target" '.bindings[] | select(.ipv6 == $ip)' "$BINDING_FILE")
+            # Verificar si ya existe
+            EXISTS=$(jq --arg ip "$ipv6" '.bindings[] | select(.ipv6 == $ip)' "$BINDING_FILE")
             
             if [ -z "$EXISTS" ]; then
                 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-                jq --arg mac "$mac" --arg ip "$target" --arg intf "$INTF" --arg ts "$TIMESTAMP" \
+                jq --arg mac "$mac" --arg ip "$ipv6" --arg intf "$INTF" --arg ts "$TIMESTAMP" \
                 '.bindings += [{"mac": $mac, "ipv6": $ip, "interface": $intf, "timestamp": $ts}]' \
                 "$BINDING_FILE" > "${BINDING_FILE}.tmp" && mv "${BINDING_FILE}.tmp" "$BINDING_FILE"
             fi
+
+            # Resetear variables para el próximo paquete
+            mac=""
+            ipv6=""
         fi
     done
 done
