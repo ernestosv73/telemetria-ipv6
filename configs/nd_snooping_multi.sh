@@ -61,7 +61,7 @@ for IFACE in "${INTERFACES[@]}"; do
 
             # Verificar si ya existe
             EXISTS=$(jq --arg ip "$ipv6" '.bindings[] | select(.ipv6 == $ip)' "$BINDING_FILE")
-            
+            echo "DEBUG: MAC=$mac, IPv6=$ipv6" >&2
             if [ -z "$EXISTS" ]; then
                 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
                 jq --arg mac "$mac" --arg ip "$ipv6" --arg intf "$INTF" --arg ts "$TIMESTAMP" \
