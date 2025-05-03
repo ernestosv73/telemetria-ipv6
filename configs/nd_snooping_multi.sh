@@ -7,7 +7,7 @@ CAPTURE_DURATION=30
 
 mkdir -p "$TMP_DIR"
 
-# Inicializar archivo JSON
+# Inicializar archivo JSON principal
 echo '{"bindings": []}' > "$BINDING_FILE"
 
 echo "[*] Capturando mensajes ND (NS/NA) durante ${CAPTURE_DURATION} segundos..."
@@ -24,14 +24,14 @@ for PID in "${PIDS[@]}"; do
 done
 
 echo "[*] Procesando paquetes ND..."
-# Procesar cada interfaz individualmente y combinar al final
+# Procesar cada interfaz y acumular resultados en un array
+declare -a ALL_BINDINGS=()
+
 for IFACE in "${INTERFACES[@]}"; do
     FILE="$TMP_DIR/$IFACE.pcap"
     INTF="$IFACE"
-    TEMP_BINDING="/tmp/bindings_${IFACE}.json"
     
-    echo '{"bindings": []}' > "$TEMP_BINDING"
-
+    # Procesar paquetes para esta interfaz
     tcpdump -nn -r "$FILE" 'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' -e 2>/dev/null | while read -r line; do
         SRC_MAC=""
         IPV6=""
@@ -49,18 +49,36 @@ for IFACE in "${INTERFACES[@]}"; do
         if [[ -n "$SRC_MAC" && -n "$IPV6" ]]; then
             echo "[$INTF] Binding encontrado: $IPV6 -> $SRC_MAC"
             
-            # Usar un archivo temporal por interfaz
-            TEMP_FILE="${TEMP_BINDING}.tmp"
-            jq --arg mac "$SRC_MAC" --arg ip "$IPV6" --arg intf "$INTF" --arg ts "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
-               '.bindings += [{"mac": $mac, "ipv6": $ip, "interface": $intf, "timestamp": $ts}]' \
-               "$TEMP_BINDING" > "$TEMP_FILE" && mv "$TEMP_FILE" "$TEMP_BINDING"
+            # Crear objeto JSON para este binding
+            BINDING_JSON=$(jq -n \
+                --arg mac "$SRC_MAC" \
+                --arg ip "$IPV6" \
+                --arg intf "$INTF" \
+                --arg ts "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+                '{mac: $mac, ipv6: $ip, interface: $intf, timestamp: $ts}')
+            
+            # Agregar a array temporal (usando un archivo temporal)
+            TEMP_FILE="/tmp/binding_$$.tmp"
+            echo "$BINDING_JSON" >> "$TEMP_FILE"
         fi
     done
     
-    # Combinar los resultados de esta interfaz con el archivo principal
-    jq -s '.[0].bindings + .[1].bindings | unique_by(.ipv6)' "$BINDING_FILE" "$TEMP_BINDING" > "${BINDING_FILE}.tmp" \
-        && mv "${BINDING_FILE}.tmp" "$BINDING_FILE"
+    # Si hay bindings para esta interfaz, agregarlos al array principal
+    if [ -f "$TEMP_FILE" ]; then
+        while IFS= read -r line; do
+            ALL_BINDINGS+=("$line")
+        done < "$TEMP_FILE"
+        rm -f "$TEMP_FILE"
+    fi
 done
+
+# Combinar todos los bindings en el archivo final
+if [ ${#ALL_BINDINGS[@]} -gt 0 ]; then
+    # Convertir array a JSON válido
+    printf '%s\n' "${ALL_BINDINGS[@]}" | jq -s 'unique_by(.ipv6)' > "$BINDING_FILE"
+else
+    echo '{"bindings": []}' > "$BINDING_FILE"
+fi
 
 echo "[✓] Tabla final en: $BINDING_FILE"
 jq . "$BINDING_FILE"
