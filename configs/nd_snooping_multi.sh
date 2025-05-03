@@ -7,7 +7,7 @@ CAPTURE_DURATION=30
 
 mkdir -p "$TMP_DIR"
 
-# Inicializar archivo JSON
+# Inicializar archivo JSON con estructura correcta
 echo '{"bindings": []}' > "$BINDING_FILE"
 
 echo "[*] Capturando mensajes ND (NS/NA) durante ${CAPTURE_DURATION} segundos..."
@@ -24,32 +24,31 @@ for PID in "${PIDS[@]}"; do
 done
 
 echo "[*] Procesando paquetes ND..."
-# Archivo temporal único para esta ejecución
-TEMP_FILE="/tmp/nd_bindings_$$.json"
-echo '{"bindings": []}' > "$TEMP_FILE"
+# Procesar cada interfaz y acumular bindings
+declare -a ALL_BINDINGS=()
 
-process_interface() {
-    local IFACE=$1
-    local FILE="$TMP_DIR/$IFACE.pcap"
+for IFACE in "${INTERFACES[@]}"; do
+    FILE="$TMP_DIR/$IFACE.pcap"
     
-    tcpdump -nn -r "$FILE" 'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' -e 2>/dev/null | while read -r line; do
+    # Procesar paquetes para esta interfaz
+    while read -r line; do
         SRC_MAC=""
         IPV6=""
         
-        # Extraer MAC origen
-        if [[ "$line" =~ ([0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}) ]]; then
-            SRC_MAC=$(echo "${BASH_REMATCH[1]}" | tr '[:upper:]' '[:lower:]')
+        # Extraer MAC origen (formato más robusto)
+        if [[ "$line" =~ ([0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}) ]]; then
+            SRC_MAC="${BASH_REMATCH[1],,}" # Convertir a minúsculas
         fi
 
-        # Extraer IPv6
-        if [[ "$line" =~ who\ has\ ([0-9a-fA-F:]+) ]] || [[ "$line" =~ tgt\ is\ ([0-9a-fA-F:]+) ]]; then
-            IPV6=$(echo "${BASH_REMATCH[1]}" | tr '[:upper:]' '[:lower:]')
+        # Extraer IPv6 (versión mejorada)
+        if [[ "$line" =~ (who has|tgt is)\ ([0-9a-f:]+) ]]; then
+            IPV6="${BASH_REMATCH[2],,}"
         fi
 
         if [[ -n "$SRC_MAC" && -n "$IPV6" ]]; then
             echo "[$IFACE] Binding encontrado: $IPV6 -> $SRC_MAC"
             
-            # Crear JSON para este binding
+            # Crear objeto JSON para este binding
             BINDING_JSON=$(jq -n \
                 --arg mac "$SRC_MAC" \
                 --arg ip "$IPV6" \
@@ -57,23 +56,17 @@ process_interface() {
                 --arg ts "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
                 '{mac: $mac, ipv6: $ip, interface: $intf, timestamp: $ts}')
             
-            # Agregar al archivo temporal
-            jq --argjson binding "$BINDING_JSON" '.bindings += [$binding]' "$TEMP_FILE" > "${TEMP_FILE}.tmp" \
-                && mv "${TEMP_FILE}.tmp" "$TEMP_FILE"
+            ALL_BINDINGS+=("$BINDING_JSON")
         fi
-    done
-}
-
-# Procesar cada interfaz en el shell principal
-for IFACE in "${INTERFACES[@]}"; do
-    process_interface "$IFACE"
+    done < <(tcpdump -nn -r "$FILE" 'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' -e 2>/dev/null)
 done
 
-# Eliminar duplicados y guardar el resultado final
-jq '.bindings | unique_by(.ipv6)' "$TEMP_FILE" > "$BINDING_FILE"
+# Combinar todos los bindings y eliminar duplicados
+if [ ${#ALL_BINDINGS[@]} -gt 0 ]; then
+    printf '%s\n' "${ALL_BINDINGS[@]}" | jq -s '{"bindings": (. | unique_by(.ipv6))}' > "$BINDING_FILE"
+else
+    echo '{"bindings": []}' > "$BINDING_FILE"
+fi
 
 echo "[✓] Tabla final en: $BINDING_FILE"
 jq . "$BINDING_FILE"
-
-# Limpiar archivo temporal
-rm -f "$TEMP_FILE"
