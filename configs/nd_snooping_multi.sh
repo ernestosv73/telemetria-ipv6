@@ -30,30 +30,28 @@ for IFACE in "${INTERFACES[@]}"; do
     FILE="$TMP_DIR/$IFACE.pcap"
     INTF="$IFACE"
 
-    tcpdump -nn -r "$FILE" 'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' -e | while read -r line; do
-        echo "[*] Línea: $line"  # Depuración
-
-        # Extraer la MAC origen
-        if [[ "$line" =~ ([0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}) ]]; then
-            SRC_MAC="${BASH_REMATCH[1]}"
-        else
-            SRC_MAC=""
+    # Procesar cada archivo pcap manteniendo la interfaz de origen
+    tcpdump -nn -r "$FILE" 'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' -e 2>/dev/null | while read -r line; do
+        SRC_MAC=""
+        IPV6=""
+        
+        # Extraer la MAC origen (mejor expresión regular)
+        if [[ "$line" =~ ([0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}) ]]; then
+            SRC_MAC=$(echo "${BASH_REMATCH[1]}" | tr '[:upper:]' '[:lower:]')
         fi
 
-        # Extraer la dirección IPv6
-        if [[ "$line" =~ who\ has\ ([0-9a-f:]+) ]]; then
-            IPV6="${BASH_REMATCH[1]}"
-        elif [[ "$line" =~ tgt\ is\ ([0-9a-f:]+) ]]; then
-            IPV6="${BASH_REMATCH[1]}"
-        else
-            IPV6=""
+        # Extraer la dirección IPv6 (versión mejorada)
+        if [[ "$line" =~ who\ has\ ([0-9a-fA-F:]+) ]] || [[ "$line" =~ tgt\ is\ ([0-9a-fA-F:]+) ]]; then
+            IPV6=$(echo "${BASH_REMATCH[1]}" | tr '[:upper:]' '[:lower:]')
         fi
 
         # Guardar binding si hay MAC e IPv6 válidas
         if [[ -n "$SRC_MAC" && -n "$IPV6" ]]; then
-            echo "Binding encontrado: $IPV6 -> $SRC_MAC"
+            echo "[$INTF] Binding encontrado: $IPV6 -> $SRC_MAC"
 
+            # Verificar si el binding ya existe
             EXISTS=$(jq --arg ip "$IPV6" '.bindings[] | select(.ipv6 == $ip)' "$BINDING_FILE")
+            
             if [ -z "$EXISTS" ]; then
                 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
                 jq --arg mac "$SRC_MAC" --arg ip "$IPV6" --arg intf "$INTF" --arg ts "$TIMESTAMP" \
@@ -66,5 +64,3 @@ done
 
 echo "[✓] Tabla final en: $BINDING_FILE"
 jq . "$BINDING_FILE"
-
-
