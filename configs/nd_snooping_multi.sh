@@ -9,11 +9,11 @@ if [ ! -f "$BINDING_FILE" ]; then
     echo '{"bindings": []}' > "$BINDING_FILE"
 fi
 
-echo "[*] Capturando ND en interfaces durante 30 segundos..."
+echo "[*] Capturando ND en interfaces durante 60 segundos..."
 PIDS=()
 for IFACE in "${INTERFACES[@]}"; do
     FILE="$TMP_DIR/$IFACE.pcap"
-    timeout 30 tcpdump -i "$IFACE" -vv -w "$FILE" 'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' &
+    timeout 60 tcpdump -i "$IFACE" -vv -w "$FILE" 'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' &
     PIDS+=($!)
 done
 
@@ -25,36 +25,31 @@ echo "[*] Procesando paquetes ND..."
 for IFACE in "${INTERFACES[@]}"; do
     FILE="$TMP_DIR/$IFACE.pcap"
     INTF="$IFACE"
-
-    # Procesar con tcpdump mostrando todas las líneas relevantes
-    tcpdump -nn -v -r "$FILE" 2>/dev/null | while IFS= read -r line; do
+    
+    # Extraer información completa con tcpdump
+    tcpdump -nn -v -e -r "$FILE" 2>/dev/null | while read -r line; do
         mac=""
         ipv6=""
-        debug_line="$line"
         
-        # Extraer MAC origen (formato tcpdump)
-        if [[ "$line" =~ ([0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}) ]]; then
+        # Extraer MAC origen (formato tcpdump con -e)
+        if [[ "$line" =~ ([0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}).* > ]]; then
             mac="${BASH_REMATCH[1]}"
         fi
 
         # Extraer IPv6 para Neighbor Solicitation
         if [[ "$line" =~ "ICMP6, neighbor solicitation" && "$line" =~ "who has ([0-9a-fA-F:]+)" ]]; then
             ipv6="${BASH_REMATCH[1]}"
-            echo "DEBUG [NS]: $mac -> $ipv6" >&2
+            echo "DEBUG [NS]: MAC=$mac -> IPv6=$ipv6" >&2
         fi
 
-        # Extraer IPv6 y MAC para Neighbor Advertisement
-        if [[ "$line" =~ "ICMP6, neighbor advertisement" ]]; then
-            if [[ "$line" =~ "tgt is ([0-9a-fA-F:]+)" ]]; then
-                ipv6="${BASH_REMATCH[1]}"
+        # Extraer IPv6 para Neighbor Advertisement
+        if [[ "$line" =~ "ICMP6, neighbor advertisement" && "$line" =~ "tgt is ([0-9a-fA-F:]+)" ]]; then
+            ipv6="${BASH_REMATCH[1]}"
+            # Extraer MAC de la opción link-layer
+            if [[ "$line" =~ "([0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2})" ]]; then
+                mac="${BASH_REMATCH[1]}"
             fi
-            # MAC está en la siguiente línea (destination link-address option)
-            if [[ "$line" =~ "destination link-address option" || "$line" =~ "source link-address option" ]]; then
-                if [[ "$line" =~ "([0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2})" ]]; then
-                    mac="${BASH_REMATCH[1]}"
-                fi
-            fi
-            echo "DEBUG [NA]: $mac -> $ipv6" >&2
+            echo "DEBUG [NA]: MAC=$mac -> IPv6=$ipv6" >&2
         fi
 
         # Solo procesar si tenemos ambos valores
