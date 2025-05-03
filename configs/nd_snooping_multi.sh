@@ -12,8 +12,8 @@ fi
 echo "[*] Capturando mensajes ND (NS/NA) durante 30 segundos..."
 PIDS=()
 for IFACE in "${INTERFACES[@]}"; do
-    FILE="$TMP_DIR/$IFACE.pcap"
-    timeout 30 tcpdump -i "$IFACE" -nn -e -vv ip6 and 'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' > "$FILE" &
+    FILE="$TMP_DIR/$IFACE.log"
+    timeout 30 tcpdump -i "$IFACE" -nn -e -vv 'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' > "$FILE" &
     PIDS+=($!)
 done
 
@@ -24,28 +24,24 @@ done
 echo "[*] Procesando paquetes ND..."
 
 for IFACE in "${INTERFACES[@]}"; do
-    FILE="$TMP_DIR/$IFACE.pcap"
+    FILE="$TMP_DIR/$IFACE.log"
     INTF="$IFACE"
     SRC_MAC=""
     IPV6=""
 
     while read -r line; do
-        # Detectar y guardar MAC origen
+        # Extraer MAC de capa enlace
         if [[ "$line" =~ ^[0-9:.]+\ ([0-9a-f:]{17})\ > ]]; then
             SRC_MAC="${BASH_REMATCH[1]}"
         fi
 
-        # Extraer IPv6 en NS (who has ...)
+        # Extraer IPv6 objetivo
         if [[ "$line" =~ who\ has\ ([0-9a-f:]+) ]]; then
             IPV6="${BASH_REMATCH[1]}"
-        fi
-
-        # Extraer IPv6 en NA (tgt is ...)
-        if [[ "$line" =~ tgt\ is\ ([0-9a-f:]+) ]]; then
+        elif [[ "$line" =~ tgt\ is\ ([0-9a-f:]+) ]]; then
             IPV6="${BASH_REMATCH[1]}"
         fi
 
-        # Agregar a tabla si tenemos ambos
         if [[ -n "$SRC_MAC" && -n "$IPV6" ]]; then
             echo "Binding encontrado: $IPV6 -> $SRC_MAC"
 
