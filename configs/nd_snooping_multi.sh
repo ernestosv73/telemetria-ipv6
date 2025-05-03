@@ -13,7 +13,7 @@ echo "[*] Capturando ND en interfaces durante 30 segundos..."
 PIDS=()
 for IFACE in "${INTERFACES[@]}"; do
     FILE="$TMP_DIR/$IFACE.pcap"
-    timeout 30 tcpdump -i "$IFACE" -vv ip6 and 'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' -e > "$FILE" &
+    timeout 30 tcpdump -i "$IFACE" -vv -w "$FILE" 'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' &
     PIDS+=($!)
 done
 
@@ -26,35 +26,42 @@ for IFACE in "${INTERFACES[@]}"; do
     FILE="$TMP_DIR/$IFACE.pcap"
     INTF="$IFACE"
 
-    # Lectura de paquetes con más depuración
-    tcpdump -nn -r "$FILE" 'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' -e | while read -r line; do
-        echo "[*] Paquete capturado: $line"  # Agregamos más depuración para ver el contenido del paquete
+    # Procesar archivos pcap con tshark para mejor análisis
+    tshark -r "$FILE" -T fields -E separator=, -E quote=d \
+        -e frame.time -e eth.src -e ipv6.src -e ipv6.dst -e icmpv6.type -e icmpv6.na.target -e icmpv6.ns.target_address \
+        -e _ws.col.Info 2>/dev/null | while IFS=, read -r timestamp src_mac ipv6_src ipv6_dst icmp_type na_target ns_target info; do
+        
+        # Determinar tipo de mensaje y extraer información relevante
+        case $icmp_type in
+            135) # Neighbor Solicitation
+                target="$ns_target"
+                mac="$src_mac"
+                ;;
+            136) # Neighbor Advertisement
+                target="$na_target"
+                # En NA, la MAC está en una opción que no capturamos, usar src_mac (puede no ser fiable)
+                mac="$src_mac"
+                ;;
+            *) continue ;;
+        esac
 
-        if [[ "$line" =~ ([0-9a-f:]{17})\  >\ 33:33:ff:([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2}) ]]; then
-            SRC_MAC="${BASH_REMATCH[1]}"
-        fi
+        # Validar y limpiar datos
+        mac=$(echo "$mac" | tr -d '"' | awk '{print tolower($0)}')
+        target=$(echo "$target" | tr -d '"' | awk '{print tolower($0)}')
 
-        # Ajustar la extracción de IPv6
-        if [[ "$line" =~ ICMP6,\ neighbor\ solicitation,\ length ]]; then
-            IPV6=$(echo "$line" | grep -oP 'who\ has\s+([0-9a-f:]+::[0-9a-f:]+)' | sed 's/who has //')
-        elif [[ "$line" =~ ICMP6,\ neighbor\ advertisement,\ length ]]; then
-            IPV6=$(echo "$line" | grep -oP 'target\s+([0-9a-f:]+::[0-9a-f:]+)' | sed 's/target //')
-        fi
+        # Solo procesar si tenemos ambos valores
+        if [[ -n "$mac" && -n "$target" ]]; then
+            echo "[+] Binding encontrado: $target -> $mac en $INTF"
 
-        # Si se encuentran ambos, agregar el binding
-        if [[ -n "$SRC_MAC" && -n "$IPV6" ]]; then
-            echo "Binding encontrado: $IPV6 -> $SRC_MAC"  # Depuración: Imprimir los bindings encontrados
-
-            EXISTS=$(jq --arg ip "$IPV6" '.bindings[] | select(.ipv6 == $ip)' "$BINDING_FILE")
+            # Verificar si ya existe en el archivo
+            EXISTS=$(jq --arg ip "$target" '.bindings[] | select(.ipv6 == $ip)' "$BINDING_FILE")
+            
             if [ -z "$EXISTS" ]; then
                 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-                jq --arg mac "$SRC_MAC" --arg ip "$IPV6" --arg intf "$INTF" --arg ts "$TIMESTAMP" \
+                jq --arg mac "$mac" --arg ip "$target" --arg intf "$INTF" --arg ts "$TIMESTAMP" \
                 '.bindings += [{"mac": $mac, "ipv6": $ip, "interface": $intf, "timestamp": $ts}]' \
                 "$BINDING_FILE" > "${BINDING_FILE}.tmp" && mv "${BINDING_FILE}.tmp" "$BINDING_FILE"
             fi
-
-            SRC_MAC=""
-            IPV6=""
         fi
     done
 done
