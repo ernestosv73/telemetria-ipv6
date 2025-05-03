@@ -28,8 +28,11 @@ for IFACE in "${INTERFACES[@]}"; do
 
     # Procesar con tcpdump en modo legible
     tcpdump -nn -v -r "$FILE" 2>/dev/null | while read -r line; do
-        # Extraer MAC origen
-        if [[ "$line" =~ ([0-9a-fA-F:]{17})\ > ]]; then
+        mac=""
+        ipv6=""
+        
+        # Extraer MAC origen (de la línea anterior en el formato de tcpdump)
+        if [[ "$line" =~ ([0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}) ]]; then
             mac="${BASH_REMATCH[1]}"
         fi
 
@@ -41,6 +44,10 @@ for IFACE in "${INTERFACES[@]}"; do
         elif [[ "$line" =~ "ICMP6, neighbor advertisement" ]]; then
             if [[ "$line" =~ "tgt is ([0-9a-fA-F:]+)" ]]; then
                 ipv6="${BASH_REMATCH[1]}"
+            fi
+            # Para NA, la MAC está en la línea de "destination link-address option"
+            if [[ "$line" =~ "destination link-address option.*([0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2})" ]]; then
+                mac="${BASH_REMATCH[1]}"
             fi
         fi
 
@@ -61,10 +68,6 @@ for IFACE in "${INTERFACES[@]}"; do
                 '.bindings += [{"mac": $mac, "ipv6": $ip, "interface": $intf, "timestamp": $ts}]' \
                 "$BINDING_FILE" > "${BINDING_FILE}.tmp" && mv "${BINDING_FILE}.tmp" "$BINDING_FILE"
             fi
-
-            # Resetear variables para el próximo paquete
-            mac=""
-            ipv6=""
         fi
     done
 done
