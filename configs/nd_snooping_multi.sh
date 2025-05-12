@@ -1,67 +1,66 @@
 #!/bin/bash
 
-INTERFACES=("e1-2" "e1-3" "e1-4")
+# Interfaces a monitorear
+INTERFACES=("e1-2" "e1-3" "e1-4" "e1-5")
+
+# Archivos
 BINDING_FILE="/root/bindings.json"
 TMP_DIR="/tmp/nd_snoop"
-CAPTURE_DURATION=30
-
 mkdir -p "$TMP_DIR"
 
-# Inicializar archivo JSON
-echo '{"bindings": []}' > "$BINDING_FILE"
+# Crear estructura JSON si no existe
+if [ ! -f "$BINDING_FILE" ]; then
+    echo '{"bindings": []}' > "$BINDING_FILE"
+fi
 
-echo "[*] Capturando mensajes ND (NS/NA) durante ${CAPTURE_DURATION} segundos..."
+# Iniciar capturas en paralelo
+echo "[*] Capturando ND en interfaces durante 30 segundos..."
 PIDS=()
 for IFACE in "${INTERFACES[@]}"; do
     FILE="$TMP_DIR/$IFACE.pcap"
-    timeout "$CAPTURE_DURATION" tcpdump -i "$IFACE" -w "$FILE" \
-        'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' 2>/dev/null &
+    timeout 300 tcpdump -i "$IFACE" -vv ip6 and 'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' -e > "$FILE" &
     PIDS+=($!)
 done
 
-# Esperar finalización de todos los procesos tcpdump
+# Esperar a que terminen todas las capturas
 for PID in "${PIDS[@]}"; do
     wait "$PID"
 done
 
+# Procesar cada archivo
 echo "[*] Procesando paquetes ND..."
-
-declare -A UNIQUE_KEYS
-declare -a BINDINGS_JSON
-
 for IFACE in "${INTERFACES[@]}"; do
     FILE="$TMP_DIR/$IFACE.pcap"
-    
-    # Leer paquetes ND del archivo pcap
-    tcpdump -nn -r "$FILE" -e -vvv 2>/dev/null | while read -r line; do
-        MAC=$(echo "$line" | grep -oE 'src [0-9a-f:]{17}' | awk '{print $2}')
-        IP=$(echo "$line" | grep -oE '([0-9a-f]{0,4}:){2,7}[0-9a-f]{1,4}')
-        
-        if [[ -n "$MAC" && -n "$IP" ]]; then
-            KEY="${MAC}_${IP}_${IFACE}"
-            if [[ -z "${UNIQUE_KEYS[$KEY]}" ]]; then
-                UNIQUE_KEYS[$KEY]=1
-                echo "[$IFACE] Binding encontrado: $IP -> $MAC"
+    INTF="$IFACE"
 
-                BINDING_JSON=$(jq -n \
-                    --arg mac "$MAC" \
-                    --arg ip "$IP" \
-                    --arg intf "$IFACE" \
-                    --arg ts "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
-                    '{mac: $mac, ipv6: $ip, interface: $intf, timestamp: $ts}')
-
-                BINDINGS_JSON+=("$BINDING_JSON")
-            fi
+    while read -r line; do
+        if [[ "$line" =~ ^([0-9a-f:]{17})\ >\ ([0-9a-f:]{17}).* ]]; then
+            SRC_MAC="${BASH_REMATCH[1]}"
         fi
-    done
-done
 
-# Guardar el resultado final
-if [ ${#BINDINGS_JSON[@]} -gt 0 ]; then
-    printf '%s\n' "${BINDINGS_JSON[@]}" | jq -s '{"bindings": .}' > "$BINDING_FILE"
-else
-    echo '{"bindings": []}' > "$BINDING_FILE"
-fi
+        if [[ "$line" =~ ICMP6,\ neighbor\ (solicitation|advertisement).*\ who\ has\ ([0-9a-f:]+::[0-9a-f:]+) ]]; then
+            IPV6="${BASH_REMATCH[2]}"
+        elif [[ "$line" =~ ICMP6,\ neighbor\ advertisement.*\ target\ ([0-9a-f:]+::[0-9a-f:]+) ]]; then
+            IPV6="${BASH_REMATCH[1]}"
+        fi
+
+        if [[ -n "$SRC_MAC" && -n "$IPV6" ]]; then
+            # Verificar si ya existe
+            EXISTS=$(jq --arg ip "$IPV6" '.bindings[] | select(.ipv6 == $ip)' "$BINDING_FILE")
+
+            if [ -z "$EXISTS" ]; then
+                echo "[+] Agregando binding: $IPV6 → $SRC_MAC en $INTF"
+                TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+                jq --arg mac "$SRC_MAC" --arg ip "$IPV6" --arg intf "$INTF" --arg ts "$TIMESTAMP" \
+                '.bindings += [{"mac": $mac, "ipv6": $ip, "interface": $intf, "timestamp": $ts}]' \
+                "$BINDING_FILE" > "${BINDING_FILE}.tmp" && mv "${BINDING_FILE}.tmp" "$BINDING_FILE"
+            fi
+
+            SRC_MAC=""
+            IPV6=""
+        fi
+    done < "$FILE"
+done
 
 echo "[✓] Tabla final en: $BINDING_FILE"
 jq . "$BINDING_FILE"
