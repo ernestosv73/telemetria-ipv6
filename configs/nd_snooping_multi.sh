@@ -24,8 +24,7 @@ for PID in "${PIDS[@]}"; do
 done
 
 echo "[*] Procesando paquetes ND..."
-declare -A LL_BINDINGS  # Para bindings link-local
-declare -A GUA_BINDINGS # Para bindings global unicast
+declare -A BINDING_MAP  # Mapa principal para evitar duplicados
 
 process_packet() {
     local line="$1"
@@ -33,7 +32,7 @@ process_packet() {
     
     local SRC_MAC=""
     local IPV6=""
-    local TYPE=""
+    local PORT=$(echo "$IFACE" | grep -o -E '[0-9]+$')
     
     # Extraer MAC origen
     if [[ "$line" =~ ([0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}) ]]; then
@@ -43,22 +42,27 @@ process_packet() {
     # Extraer IPv6 y determinar tipo
     if [[ "$line" =~ (who has|tgt is)\ ([0-9a-f:]+) ]]; then
         IPV6="${BASH_REMATCH[2],,}"
-        if [[ "$IPV6" =~ ^fe80:: ]]; then
-            TYPE="link-local"
-        elif [[ "$IPV6" =~ ^2001:db8: ]]; then  # Ajustar según prefijos usados
-            TYPE="global"
-        fi
     fi
 
-    if [[ -n "$SRC_MAC" && -n "$IPV6" && -n "$TYPE" ]]; then
-        local KEY="${SRC_MAC}-${IFACE}"
+    if [[ -n "$SRC_MAC" && -n "$IPV6" ]]; then
+        local KEY="${SRC_MAC}-${IPV6}"
         
-        if [[ "$TYPE" == "link-local" ]]; then
-            LL_BINDINGS["$KEY"]="$IPV6"
-            echo "[$IFACE] Binding LL encontrado: $IPV6 -> $SRC_MAC"
+        echo "[$IFACE] Binding encontrado: $IPV6 -> $SRC_MAC (Puerto: $PORT)"
+        
+        if [[ -n "${BINDING_MAP[$KEY]}" ]]; then
+            # Actualizar binding existente
+            CURRENT=$(echo "${BINDING_MAP[$KEY]}" | jq --arg intf "$IFACE" --arg port "$PORT" \
+                '.interfaces += [{"interface": $intf, "port": $port}] | .last_seen=$now' --arg now "$(date -u +"%Y-%m-%dT%H:%M:%SZ")")
+            BINDING_MAP[$KEY]="$CURRENT"
         else
-            GUA_BINDINGS["$KEY"]="$IPV6"
-            echo "[$IFACE] Binding GUA encontrado: $IPV6 -> $SRC_MAC"
+            # Crear nuevo binding
+            BINDING_MAP[$KEY]=$(jq -n \
+                --arg mac "$SRC_MAC" \
+                --arg ip "$IPV6" \
+                --arg intf "$IFACE" \
+                --arg port "$PORT" \
+                --arg ts "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+                '{mac: $mac, ipv6: $ip, interfaces: [{interface: $intf, port: $port}], first_seen: $ts, last_seen: $ts}')
         fi
     fi
 }
@@ -70,25 +74,49 @@ for IFACE in "${INTERFACES[@]}"; do
     done < <(tcpdump -nn -r "$FILE" 'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' -e 2>/dev/null)
 done
 
-# Generar bindings finales combinando LL y GUA
+# Separar en bindings link-local y global unicast
+declare -a LL_BINDINGS=()
+declare -a GUA_BINDINGS=()
+
+for KEY in "${!BINDING_MAP[@]}"; do
+    BINDING="${BINDING_MAP[$KEY]}"
+    IPV6=$(echo "$BINDING" | jq -r '.ipv6')
+    
+    if [[ "$IPV6" =~ ^fe80:: ]]; then
+        LL_BINDINGS+=("$BINDING")
+    else
+        GUA_BINDINGS+=("$BINDING")
+    fi
+done
+
+# Combinar bindings por MAC
 declare -a FINAL_BINDINGS=()
 
-for KEY in "${!LL_BINDINGS[@]}"; do
-    MAC_IFACE=(${KEY//-/ })
-    MAC="${MAC_IFACE[0]}"
-    IFACE="${MAC_IFACE[1]}"
-    LL_IP="${LL_BINDINGS[$KEY]}"
-    GUA_IP="${GUA_BINDINGS[$KEY]}"
-
-    BINDING_JSON=$(jq -n \
-        --arg mac "$MAC" \
-        --arg ll_ip "$LL_IP" \
-        --arg gua_ip "$GUA_IP" \
-        --arg intf "$IFACE" \
-        --arg ts "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
-        '{mac: $mac, ipv6_link_local: $ll_ip, ipv6_global: $gua_ip, interface: $intf, timestamp: $ts}')
+for LL_BINDING in "${LL_BINDINGS[@]}"; do
+    MAC=$(echo "$LL_BINDING" | jq -r '.mac')
+    LL_IP=$(echo "$LL_BINDING" | jq -r '.ipv6')
+    INTERFACES=$(echo "$LL_BINDING" | jq '.interfaces')
     
-    FINAL_BINDINGS+=("$BINDING_JSON")
+    # Buscar GUA correspondiente
+    GUA_IP="null"
+    for GUA_BINDING in "${GUA_BINDINGS[@]}"; do
+        if [[ $(echo "$GUA_BINDING" | jq -r '.mac') == "$MAC" ]]; then
+            GUA_IP=$(echo "$GUA_BINDING" | jq -r '.ipv6')
+            break
+        fi
+    done
+    
+    FINAL_BINDINGS+=($(jq -n \
+        --argjson ll "$LL_BINDING" \
+        --arg gua "$GUA_IP" \
+        '{
+            mac: $ll.mac,
+            ipv6_link_local: $ll.ipv6,
+            ipv6_global: ($gua | if . == "null" then empty else . end),
+            interfaces: $ll.interfaces,
+            first_seen: $ll.first_seen,
+            last_seen: $ll.last_seen
+        }'))
 done
 
 # Guardar bindings finales
