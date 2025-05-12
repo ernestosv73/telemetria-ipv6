@@ -7,12 +7,12 @@ CAPTURE_DURATION=30
 
 mkdir -p "$TMP_DIR"
 
-# Crear archivo JSON vacío si no existe
+# Inicializar archivo de bindings si no existe
 if [ ! -f "$BINDING_FILE" ]; then
     echo '{"bindings": []}' > "$BINDING_FILE"
 fi
 
-echo "[*] Capturando mensajes ND (NS/NA) durante ${CAPTURE_DURATION} segundos..."
+echo "[*] Capturando mensajes ND (NS y NA)..."
 PIDS=()
 for IFACE in "${INTERFACES[@]}"; do
     FILE="$TMP_DIR/$IFACE.pcap"
@@ -25,44 +25,37 @@ for PID in "${PIDS[@]}"; do
     wait "$PID"
 done
 
-echo "[*] Procesando paquetes ND..."
+echo "[*] Procesando paquetes capturados..."
 for IFACE in "${INTERFACES[@]}"; do
     FILE="$TMP_DIR/$IFACE.pcap"
-    INTF="$IFACE"
-
+    
     tcpdump -nn -r "$FILE" 'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' -e | while read -r line; do
-        echo "[*] Línea: $line"  # Depuración
-
-        # Extraer la MAC origen
-        if [[ "$line" =~ ([0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}) ]]; then
+        # Extraer MAC origen
+        if [[ "$line" =~ ([0-9a-f]{2}(:[0-9a-f]{2}){5}) ]]; then
             SRC_MAC="${BASH_REMATCH[1]}"
         else
-            SRC_MAC=""
+            continue
         fi
 
-        # Extraer la dirección IPv6
+        # Extraer dirección IPv6 del campo who has / tgt is
         if [[ "$line" =~ who\ has\ ([0-9a-f:]+) ]]; then
             IPV6="${BASH_REMATCH[1]}"
         elif [[ "$line" =~ tgt\ is\ ([0-9a-f:]+) ]]; then
             IPV6="${BASH_REMATCH[1]}"
         else
-            IPV6=""
+            continue
         fi
 
-        # Guardar binding si hay MAC e IPv6 válidas
-        if [[ -n "$SRC_MAC" && -n "$IPV6" ]]; then
-            echo "Binding encontrado: $IPV6 -> $SRC_MAC"
-
-            EXISTS=$(jq --arg ip "$IPV6" '.bindings[] | select(.ipv6 == $ip)' "$BINDING_FILE")
-            if [ -z "$EXISTS" ]; then
-                TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-                jq --arg mac "$SRC_MAC" --arg ip "$IPV6" --arg intf "$INTF" --arg ts "$TIMESTAMP" \
-                '.bindings += [{"mac": $mac, "ipv6": $ip, "interface": $intf, "timestamp": $ts}]' \
+        # Validar si ya existe esa asociación
+        EXISTS=$(jq --arg ip "$IPV6" --arg intf "$IFACE" '.bindings[] | select(.ipv6 == $ip and .interface == $intf)' "$BINDING_FILE")
+        if [ -z "$EXISTS" ]; then
+            echo "Aprendido: $IPV6 -> $SRC_MAC en $IFACE"
+            jq --arg mac "$SRC_MAC" --arg ip "$IPV6" --arg intf "$IFACE" \
+                '.bindings += [{"mac": $mac, "ipv6": $ip, "interface": $intf}]' \
                 "$BINDING_FILE" > "${BINDING_FILE}.tmp" && mv "${BINDING_FILE}.tmp" "$BINDING_FILE"
-            fi
         fi
     done
 done
 
-echo "[✓] Tabla final en: $BINDING_FILE"
+echo "[✓] Bindings generados:"
 jq . "$BINDING_FILE"
