@@ -1,61 +1,46 @@
 #!/bin/bash
 
-INTERFACES=("e1-2" "e1-3" "e1-4")
-BINDING_FILE="/root/bindings.json"
+INTERFACES=("e1-2" "e1-3" "e1-4")  # Interfaces que deseas espiar
 TMP_DIR="/tmp/nd_snoop"
-CAPTURE_DURATION=30
-
 mkdir -p "$TMP_DIR"
+BINDING_FILE="$TMP_DIR/bindings.json"
+> "$BINDING_FILE"
 
-# Inicializar archivo de bindings si no existe
-if [ ! -f "$BINDING_FILE" ]; then
-    echo '{"bindings": []}' > "$BINDING_FILE"
-fi
-
-echo "[*] Capturando mensajes ND (NS y NA)..."
-PIDS=()
+echo '[*] Capturando mensajes ND (NS y NA)...'
 for IFACE in "${INTERFACES[@]}"; do
-    FILE="$TMP_DIR/$IFACE.pcap"
-    timeout "$CAPTURE_DURATION" tcpdump -i "$IFACE" -w "$FILE" \
-        'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' &
-    PIDS+=($!)
+    tcpdump -i "$IFACE" 'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' -w "$TMP_DIR/$IFACE.pcap" -c 50 &
 done
 
-for PID in "${PIDS[@]}"; do
-    wait "$PID"
-done
-
+wait
 echo "[*] Procesando paquetes capturados..."
+
+declare -A CURRENT_BINDINGS  # llave: iface|ipv6  → valor: mac
+
 for IFACE in "${INTERFACES[@]}"; do
     FILE="$TMP_DIR/$IFACE.pcap"
-    
-    tcpdump -nn -r "$FILE" 'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' -e | while read -r line; do
-        # Extraer MAC origen
-        if [[ "$line" =~ ([0-9a-f]{2}(:[0-9a-f]{2}){5}) ]]; then
-            SRC_MAC="${BASH_REMATCH[1]}"
-        else
-            continue
-        fi
+    if [[ ! -f "$FILE" ]]; then continue; fi
 
-        # Extraer dirección IPv6 del campo who has / tgt is
-        if [[ "$line" =~ who\ has\ ([0-9a-f:]+) ]]; then
-            IPV6="${BASH_REMATCH[1]}"
-        elif [[ "$line" =~ tgt\ is\ ([0-9a-f:]+) ]]; then
-            IPV6="${BASH_REMATCH[1]}"
-        else
-            continue
-        fi
+    tshark -r "$FILE" -Y 'icmpv6.type == 135 or icmpv6.type == 136' \
+        -T fields -e eth.src -e ipv6.src | while IFS=$'\t' read -r SRC_MAC IPV6; do
+        [[ -z "$SRC_MAC" || -z "$IPV6" ]] && continue
 
-        # Validar si ya existe esa asociación
-        EXISTS=$(jq --arg ip "$IPV6" --arg intf "$IFACE" '.bindings[] | select(.ipv6 == $ip and .interface == $intf)' "$BINDING_FILE")
-        if [ -z "$EXISTS" ]; then
-            echo "Aprendido: $IPV6 -> $SRC_MAC en $IFACE"
-            jq --arg mac "$SRC_MAC" --arg ip "$IPV6" --arg intf "$IFACE" \
-                '.bindings += [{"mac": $mac, "ipv6": $ip, "interface": $intf}]' \
-                "$BINDING_FILE" > "${BINDING_FILE}.tmp" && mv "${BINDING_FILE}.tmp" "$BINDING_FILE"
-        fi
+        KEY="${IFACE}|${IPV6}"
+        CURRENT_BINDINGS["$KEY"]="$SRC_MAC"
     done
 done
 
+# Crear nuevo archivo JSON con los bindings actuales
+echo '{ "bindings": [' > "$BINDING_FILE"
+FIRST=1
+for KEY in "${!CURRENT_BINDINGS[@]}"; do
+    IFS='|' read -r IFACE IPV6 <<< "$KEY"
+    MAC="${CURRENT_BINDINGS[$KEY]}"
+
+    if [ $FIRST -eq 0 ]; then echo ',' >> "$BINDING_FILE"; fi
+    echo "  { \"mac\": \"$MAC\", \"ipv6\": \"$IPV6\", \"interface\": \"$IFACE\" }" >> "$BINDING_FILE"
+    FIRST=0
+done
+echo ']}' >> "$BINDING_FILE"
+
 echo "[✓] Bindings generados:"
-jq . "$BINDING_FILE"
+cat "$BINDING_FILE"
