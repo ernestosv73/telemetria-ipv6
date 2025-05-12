@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Interfaces a monitorear
-INTERFACES=("e1-2" "e1-3" "e1-4" "e1-5")
+INTERFACES=("e1-2" "e1-3" "e1-4")
 
 # Archivos
 BINDING_FILE="/root/bindings.json"
