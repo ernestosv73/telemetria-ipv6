@@ -3,7 +3,7 @@
 INTERFACES=("e1-2" "e1-3" "e1-4" "e1-5")
 BINDING_FILE="/root/bindings.json"
 TMP_DIR="/tmp/nd_snoop"
-CAPTURE_DURATION=30
+CAPTURE_DURATION=45
 LOCK_FILE="/tmp/nd_snooping.lock"
 
 # Bloqueo para evitar ejecuciones concurrentes
