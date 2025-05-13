@@ -1,80 +1,76 @@
 #!/bin/bash
 
-# Configuración
-INTERFACES=("e1-2" "e1-3" "e1-4")
-OUTPUT_FILE="/root/ndp_bindings.json"
-CAPTURE_DURATION=60
-PCAP_DIR="/tmp/ndp_captures"
-LOG_FILE="/var/log/ndp_monitor.log"
+INTERFACES=("e1-2" "e1-3" "e1-4" "e1-5")
+BINDING_FILE="/root/bindings.json"
+TMP_DIR="/tmp/nd_snoop"
+CAPTURE_DURATION=30
 
-mkdir -p "$PCAP_DIR"
-touch "$LOG_FILE"
+mkdir -p "$TMP_DIR"
+echo '{"bindings": []}' > "$BINDING_FILE"
 
-log_event() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG_FILE"
-}
-
-log_event "Iniciando captura ND/NA por $CAPTURE_DURATION segundos"
-echo '{"bindings": []}' > "$OUTPUT_FILE"
-
-declare -A PIDS
-declare -A BINDINGS_TABLE
-
-# Captura por interfaz
+echo "[*] Capturando mensajes ND (NS/NA) durante ${CAPTURE_DURATION} segundos..."
+PIDS=()
 for IFACE in "${INTERFACES[@]}"; do
-    PCAP_FILE="$PCAP_DIR/${IFACE}_ndp.pcap"
-    timeout $CAPTURE_DURATION tcpdump -i "$IFACE" -w "$PCAP_FILE" \
-        'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' 2>/dev/null &
-    PIDS["$IFACE"]=$!
-    log_event "Capturando en $IFACE (PID: ${PIDS[$IFACE]})"
+    FILE="$TMP_DIR/$IFACE.pcap"
+    timeout "$CAPTURE_DURATION" tcpdump -i "$IFACE" -w "$FILE" \
+        'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' &
+    PIDS+=($!)
 done
 
-# Esperar a que terminen
-for IFACE in "${!PIDS[@]}"; do
-    wait ${PIDS[$IFACE]}
-    log_event "Captura completada en $IFACE"
+# Espera que todos los procesos terminen
+for PID in "${PIDS[@]}"; do
+    wait "$PID"
 done
 
-# Procesamiento
+echo "[*] Procesando paquetes ND..."
+declare -a ALL_BINDINGS=()
+
 for IFACE in "${INTERFACES[@]}"; do
-    PCAP_FILE="$PCAP_DIR/${IFACE}_ndp.pcap"
-    tcpdump -nn -r "$PCAP_FILE" -e -vvv 'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' 2>/dev/null | \
+    FILE="$TMP_DIR/$IFACE.pcap"
+
     while read -r line; do
-        src_mac=$(echo "$line" | grep -oE '([0-9a-f]{2}:){5}[0-9a-f]{2}' | head -1 | tr '[:upper:]' '[:lower:]')
-        ipv6=$(echo "$line" | grep -oE '([a-f0-9:]{4,})' | grep ':' | head -1 | tr '[:upper:]' '[:lower:]')
+        SRC_MAC=""
+        IPV6=""
 
-        [[ -z "$src_mac" || -z "$ipv6" ]] && continue
+        # Extraer MAC de la línea (después de "src", o la primera MAC del frame)
+        if [[ "$line" =~ ([0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}) ]]; then
+            SRC_MAC="${BASH_REMATCH[1],,}"  # minusculas
+        fi
 
-        key="$IFACE,$ipv6"
-        [[ -n "${BINDINGS_TABLE[$key]}" ]] && continue
+        # Extraer dirección IPv6 (NS -> "who has", NA -> "tgt is")
+        if [[ "$line" =~ "who has" ]]; then
+            if [[ "$line" =~ who\ has\ ([0-9a-fA-F:]+) ]]; then
+                IPV6="${BASH_REMATCH[1],,}"
+            fi
+        elif [[ "$line" =~ "tgt is" ]]; then
+            if [[ "$line" =~ tgt\ is\ ([0-9a-fA-F:]+) ]]; then
+                IPV6="${BASH_REMATCH[1],,}"
+            fi
+        fi
 
-        BINDINGS_TABLE["$key"]=1
+        # Si se extrajeron ambos valores, registrar
+        if [[ -n "$SRC_MAC" && -n "$IPV6" ]]; then
+            echo "[$IFACE] Binding encontrado: $IPV6 -> $SRC_MAC"
 
-        ip_type="global"
-        [[ "$ipv6" =~ ^fe80:: ]] && ip_type="link-local"
-        time_left=$((1800 - $(date +%s) % 1800))
-        state="Valid"
+            BINDING_JSON=$(jq -n \
+                --arg mac "$SRC_MAC" \
+                --arg ip "$IPV6" \
+                --arg intf "$IFACE" \
+                --arg ts "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+                '{mac: $mac, ipv6: $ip, interface: $intf, timestamp: $ts}')
 
-        tmp_json=$(mktemp)
-        jq --arg iface "$IFACE" \
-           --arg ip "$ipv6" \
-           --arg mac "$src_mac" \
-           --argjson time "$time_left" \
-           --arg state "$state" \
-           --arg type "$ip_type" \
-           --arg time_str "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
-           '.bindings += [{
-               interface: $iface,
-               ipv6_address: $ip,
-               mac_address: $mac,
-               time_left: $time,
-               state: $state,
-               ip_type: $type,
-               last_seen: $time_str
-           }]' "$OUTPUT_FILE" > "$tmp_json" && mv "$tmp_json" "$OUTPUT_FILE"
+            ALL_BINDINGS+=("$BINDING_JSON")
+        fi
 
-        log_event "Binding registrado: $IFACE $ipv6 -> $src_mac"
-    done
+    done < <(tcpdump -nn -r "$FILE" -e 'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' 2>/dev/null)
 done
 
-log_event "Archivo JSON generado en $OUTPUT_FILE"
+# Eliminar duplicados por IP + interfaz
+if [ ${#ALL_BINDINGS[@]} -gt 0 ]; then
+    printf '%s\n' "${ALL_BINDINGS[@]}" | jq -s '{"bindings": (unique_by(.ipv6, .interface))}' > "$BINDING_FILE"
+else
+    echo '{"bindings": []}' > "$BINDING_FILE"
+fi
+
+echo "[✓] Tabla final en: $BINDING_FILE"
+jq . "$BINDING_FILE"
