@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# Configuración
 INTERFACES=("e1-2" "e1-3" "e1-4")
 OUTPUT_FILE="/root/ndp_bindings.json"
 CAPTURE_DURATION=60
@@ -13,33 +14,33 @@ log_event() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG_FILE"
 }
 
-# Iniciar JSON manualmente
-echo '{"bindings": [' > "$OUTPUT_FILE"
-
-declare -A BINDINGS_TABLE
-FIRST=1
-
 log_event "Iniciando captura de mensajes ND/NA por $CAPTURE_DURATION segundos"
+echo '{"bindings": []}' > "$OUTPUT_FILE"
 
+declare -A PIDS          # 💡 Solución al error de subscript
+declare -A BINDINGS_TABLE
+
+# Iniciar capturas en paralelo
 for IFACE in "${INTERFACES[@]}"; do
     PCAP_FILE="$PCAP_DIR/${IFACE}_ndp.pcap"
     timeout $CAPTURE_DURATION tcpdump -i "$IFACE" -w "$PCAP_FILE" \
         'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' 2>/dev/null &
-    PIDS[$IFACE]=$!
+    PIDS["$IFACE"]=$!
     log_event "Capturando en $IFACE (PID: ${PIDS[$IFACE]})"
 done
 
+# Esperar que terminen todas las capturas
 for IFACE in "${!PIDS[@]}"; do
     wait ${PIDS[$IFACE]}
     log_event "Captura completada en $IFACE"
 done
 
+# Procesar las capturas
 for IFACE in "${INTERFACES[@]}"; do
     PCAP_FILE="$PCAP_DIR/${IFACE}_ndp.pcap"
-    
     tcpdump -nn -r "$PCAP_FILE" -e -vvv 'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' 2>/dev/null | \
     while read -r line; do
-        src_mac=$(echo "$line" | awk '{for(i=1;i<=NF;i++) if ($i ~ /([0-9a-f]{2}:){5}[0-9a-f]{2}/) {print $i; exit}}' | tr '[:upper:]' '[:lower:]')
+        src_mac=$(echo "$line" | grep -oE '([0-9a-f]{2}:){5}[0-9a-f]{2}' | head -1 | tr '[:upper:]' '[:lower:]')
         ipv6=$(echo "$line" | grep -oE '([a-f0-9:]{4,})' | grep ':' | head -1 | tr '[:upper:]' '[:lower:]')
 
         [[ -z "$src_mac" || -z "$ipv6" ]] && continue
@@ -53,38 +54,39 @@ for IFACE in "${INTERFACES[@]}"; do
         time_left=$((1800 - $(date +%s) % 1800))
         state="Valid"
 
+        # Añadir a tabla hash
         BINDINGS_TABLE["$key"]=1
 
-        [[ $FIRST -eq 0 ]] && echo "," >> "$OUTPUT_FILE"
-        FIRST=0
+        # Usar jq para añadir al JSON
+        tmp_json=$(mktemp)
+        jq --arg iface "$IFACE" \
+           --arg ip "$ipv6" \
+           --arg mac "$src_mac" \
+           --argjson time "$time_left" \
+           --arg state "$state" \
+           --arg type "$ip_type" \
+           --arg time_str "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+           '.bindings += [{
+               interface: $iface,
+               ipv6_address: $ip,
+               mac_address: $mac,
+               time_left: $time,
+               state: $state,
+               ip_type: $type,
+               last_seen: $time_str
+           }]' "$OUTPUT_FILE" > "$tmp_json" && mv "$tmp_json" "$OUTPUT_FILE"
 
-        echo "  {" >> "$OUTPUT_FILE"
-        echo "    \"interface\": \"$IFACE\"," >> "$OUTPUT_FILE"
-        echo "    \"ipv6_address\": \"$ipv6\"," >> "$OUTPUT_FILE"
-        echo "    \"mac_address\": \"$src_mac\"," >> "$OUTPUT_FILE"
-        echo "    \"time_left\": $time_left," >> "$OUTPUT_FILE"
-        echo "    \"state\": \"$state\"," >> "$OUTPUT_FILE"
-        echo "    \"ip_type\": \"$ip_type\"," >> "$OUTPUT_FILE"
-        echo "    \"last_seen\": \"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\"" >> "$OUTPUT_FILE"
-        echo -n "  }" >> "$OUTPUT_FILE"
+        log_event "Binding detectado: $IFACE $ipv6 -> $src_mac"
     done
 done
 
-echo "]}" >> "$OUTPUT_FILE"
-
-# Tabla de salida humana
+# Mostrar tabla legible
 echo -e "\nINTERFACE    IPV6-ADDRESS                             MAC-ADDRESS         TIME-LEFT STATE    TYPE"
-echo "--------  ------------------------------------  -------------------  --------- -------- ---------"
-for KEY in "${!BINDINGS_TABLE[@]}"; do
-    IFS=',' read -r IFACE IPV6 <<< "$KEY"
-    grep -A 7 "\"ipv6_address\": \"$IPV6\"" "$OUTPUT_FILE" | awk '
-        /"mac_address"/ {gsub(/"|,/, "", $2); mac=$2}
-        /"time_left"/ {gsub(/,/, "", $2); time=$2}
-        /"state"/ {gsub(/"|,/, "", $2); state=$2}
-        /"ip_type"/ {gsub(/"|,/, "", $2); type=$2}
-        END {
-            printf "%-10s %-38s %-20s %-9s %-8s %-9s\n", "'$IFACE'", "'$IPV6'", mac, time, state, type
-        }'
-done | sort -k1,1
+echo "--------    --------------------------------------    -------------------  --------- -------- ---------"
+
+jq -r '.bindings[] | [.interface, .ipv6_address, .mac_address, (.time_left|tostring), .state, .ip_type] | @tsv' "$OUTPUT_FILE" | \
+while IFS=$'\t' read -r iface ip mac ttl state type; do
+    printf "%-12s %-38s %-20s %-9s %-8s %-9s\n" "$iface" "$ip" "$mac" "$ttl" "$state" "$type"
+done | sort -k1,1 -k2,2
 
 log_event "Monitoreo ND completado. Resultados en $OUTPUT_FILE"
