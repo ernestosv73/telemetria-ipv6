@@ -55,25 +55,25 @@ for IFACE in "${INTERFACES[@]}"; do
         fi
 
         # Extraer tipo de mensaje ICMPv6
-        if [[ "$line" =~ ICMP6, (.*), ]]; then
+        if [[ "$line" =~ ICMP6,[[:space:]]([^,]+), ]]; then
             TYPE="${BASH_REMATCH[1]}"
         fi
 
         # Extraer información específica según el tipo de mensaje
         case "$TYPE" in
             "Neighbor Solicitation")
-                if [[ "$line" =~ target=([0-9a-fA-F:]+) ]]; then
+                if [[ "$line" =~ target[[:space:]]*=[[:space:]]*([0-9a-fA-F:]+) ]]; then
                     TGT_IP="${BASH_REMATCH[1],,}"
                 fi
-                if [[ "$line" =~ target link-address: ([0-9a-fA-F:]+) ]]; then
+                if [[ "$line" =~ target[[:space:]]*link-address:[[:space:]]*([0-9a-fA-F:]+) ]]; then
                     TGT_MAC=$(echo "${BASH_REMATCH[1]}" | tr '[:upper:]' '[:lower:]')
                 fi
                 ;;
             "Neighbor Advertisement")
-                if [[ "$line" =~ target=([0-9a-fA-F:]+) ]]; then
+                if [[ "$line" =~ target[[:space:]]*=[[:space:]]*([0-9a-fA-F:]+) ]]; then
                     TGT_IP="${BASH_REMATCH[1],,}"
                 fi
-                if [[ "$line" =~ target link-address: ([0-9a-fA-F:]+) ]]; then
+                if [[ "$line" =~ target[[:space:]]*link-address:[[:space:]]*([0-9a-fA-F:]+) ]]; then
                     TGT_MAC=$(echo "${BASH_REMATCH[1]}" | tr '[:upper:]' '[:lower:]')
                 fi
                 ;;
@@ -114,7 +114,6 @@ for IFACE in "${INTERFACES[@]}"; do
             
             # Agregar dirección MAC objetivo si es diferente
             if [[ -n "$TGT_MAC" && "$TGT_MAC" != "$SRC_MAC" ]]; then
-                # Necesitamos la IP asociada a esta MAC (simplificación)
                 BINDING=$(jq -n \
                     --arg mac "$TGT_MAC" \
                     --arg ipv6 "$TGT_IP" \
