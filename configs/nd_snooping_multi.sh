@@ -1,6 +1,6 @@
 #!/bin/bash
 
-INTERFACES=("e1-2" "e1-3" "e1-4" "e1-5")
+INTERFACES=("e1-2" "e1-3" "e1-4")
 OUTPUT_FILE="/root/bindings.json"
 TMP_DIR="/tmp/nd_snoop"
 CAPTURE_DURATION=30
