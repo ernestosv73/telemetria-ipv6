@@ -1,98 +1,66 @@
 #!/bin/bash
 
-INTERFACES=("e1-2" "e1-3" "e1-4")
-BINDING_FILE="/root/bindings.json"
-TMP_DIR="/tmp/nd_snoop"
-CAPTURE_DURATION=30
+OUTPUT="nd_snooping.json"
+INTERFACES=("e1-2" "e1-3")
+TIMEOUT=30  # segundos de captura por interfaz
 
-# Crear directorio temporal y archivo de salida
-mkdir -p "$TMP_DIR"
-echo '{}' > "$BINDING_FILE"
+# Función para agregar binding al JSON
+add_binding() {
+    local interface=$1
+    local mac=$2
+    local ipv6=$3
+    local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-echo "[*] Capturando mensajes ND (NS/NA) durante ${CAPTURE_DURATION} segundos..."
-PIDS=()
-for IFACE in "${INTERFACES[@]}"; do
-    FILE="$TMP_DIR/$IFACE.pcap"
-    timeout "$CAPTURE_DURATION" tcpdump -i "$IFACE" -w "$FILE" \
-        'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' &
-    PIDS+=($!)
-done
+    exists=$(jq -r --arg intf "$interface" --arg mac "$mac" --arg ip "$ipv6" \
+        'getpath([$intf, "[]", {"mac":$mac, "ipv6":$ip}])' "$OUTPUT")
 
-# Esperar que todos los procesos terminen
-for PID in "${PIDS[@]}"; do
-    wait "$PID"
-done
-
-echo "[*] Procesando paquetes ND..."
-
-declare -A INTERFACE_BINDINGS
-
-for IFACE in "${INTERFACES[@]}"; do
-    FILE="$TMP_DIR/$IFACE.pcap"
-    [ -f "$FILE" ] || continue
-    
-    INTERFACE_BINDINGS["$IFACE"]="[]"
-    
-    # Procesar cada paquete capturado
-    while read -r line; do
-        SRC_MAC=""
-        IPV6=""
-        TYPE=""
-
-        # Extraer MAC origen (formato simplificado)
-        if [[ "$line" =~ ([0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}) ]]; then
-            SRC_MAC="${BASH_REMATCH[1],,}"
-        fi
-
-        # Determinar tipo de mensaje y extraer IPv6
-        if [[ "$line" =~ "who has" ]]; then
-            TYPE="NS"
-            if [[ "$line" =~ who\ has\ ([0-9a-fA-F:]+) ]]; then
-                IPV6="${BASH_REMATCH[1],,}"
-            fi
-        elif [[ "$line" =~ "tgt is" ]]; then
-            TYPE="NA"
-            if [[ "$line" =~ tgt\ is\ ([0-9a-fA-F:]+) ]]; then
-                IPV6="${BASH_REMATCH[1],,}"
-            fi
-        fi
-
-        # Registrar binding si tenemos ambos valores
-        if [[ -n "$SRC_MAC" && -n "$IPV6" ]]; then
-            TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-            
-            BINDING=$(jq -n \
-                --arg mac "$SRC_MAC" \
-                --arg ipv6 "$IPV6" \
-                --arg interface "$IFACE" \
-                --arg timestamp "$TIMESTAMP" \
-                '{mac: $mac, ipv6: $ipv6, interface: $interface, timestamp: $timestamp}')
-            
-            CURRENT=$(echo "${INTERFACE_BINDINGS[$IFACE]}" | jq --argjson binding "$BINDING" '. + [$binding]')
-            INTERFACE_BINDINGS["$IFACE"]="$CURRENT"
-            
-            echo "[$IFACE] Binding encontrado: $IPV6 -> $SRC_MAC"
-        fi
-
-    done < <(tcpdump -nn -r "$FILE" -e 'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' 2>/dev/null)
-done
-
-# Generar el archivo JSON final
-echo "{" > "$BINDING_FILE"
-FIRST=1
-for IFACE in "${INTERFACES[@]}"; do
-    if [ "$FIRST" -eq 1 ]; then
-        FIRST=0
-    else
-        echo "," >> "$BINDING_FILE"
+    if [[ "$exists" == "null" || -z "$exists" ]]; then
+        jq --arg intf "$interface" \
+           --arg mac "$mac" \
+           --arg ip "$ipv6" \
+           --arg ts "$timestamp" \
+           '.[$intf] += [{mac: $mac, ipv6: $ip, interface: $intf, timestamp: $ts}]' "$OUTPUT" > tmp.json && mv tmp.json "$OUTPUT"
+        echo "[+] Nuevo binding: Interface: $interface | MAC: $mac | IPv6: $ipv6"
     fi
-    
-    echo -n "  \"$IFACE\": ${INTERFACE_BINDINGS[$IFACE]}" >> "$BINDING_FILE"
+}
+
+# Función para procesar tráfico NDP
+capture_ndp() {
+    local interface=$1
+    echo "[*] Capturando NDP en interfaz $interface durante $TIMEOUT segundos..."
+
+    timeout $TIMEOUT tcpdump -i $interface -nn -U -w - icmp6 |
+        tshark -r - -Y "icmpv6.type == 135 or icmpv6.type == 136" -T fields \
+            -e frame.interface_name \
+            -e eth.src \
+            -e icmpv6.opt.linkaddr \
+            -e icmpv6.target \
+            -e ipv6.src \
+            -e icmpv6.opt.prefixinfo.prefix \
+            2>/dev/null |
+        while read -r _iface mac lladdr target ipaddr prefix; do
+
+            # Usamos IP fuente (ipv6.src) o target (en caso de solicitudes)
+            ipv6=${ipaddr:-$target}
+
+            # Si hay una dirección MAC y una IPv6 válida
+            if [[ -n "$mac" && -n "$ipv6" ]]; then
+                add_binding "$interface" "$mac" "$ipv6"
+            fi
+
+            # También registrar la dirección link-local si está presente
+            if [[ -n "$lladdr" && -n "$mac" ]]; then
+                add_binding "$interface" "$mac" "$lladdr"
+            fi
+
+            # Registrar prefijo global si se incluye (por ejemplo en RA)
+            if [[ -n "$prefix" && "$prefix" != "::/0" ]]; then
+                echo "[*] Prefijo detectado: $prefix en interfaz $interface"
+            fi
+        done
+}
+
+# Iniciar captura en cada interfaz
+for intf in "${INTERFACES[@]}"; do
+    capture_ndp "$intf"
 done
-echo -e "\n}" >> "$BINDING_FILE"
-
-# Eliminar duplicados
-jq 'walk(if type == "array" then unique_by(.ipv6) else . end)' "$BINDING_FILE" > "${BINDING_FILE}.tmp" && mv "${BINDING_FILE}.tmp" "$BINDING_FILE"
-
-echo "[✓] Tabla final en: $BINDING_FILE"
-jq . "$BINDING_FILE"
