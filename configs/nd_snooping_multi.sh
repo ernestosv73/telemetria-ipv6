@@ -1,83 +1,150 @@
 #!/bin/bash
 
-INTERFACES=("e1-2" "e1-3" "e1-4")
-DURATION=30
-OUTPUT="/root/bindings.json"
+INTERFACES=("e1-2" "e1-3" "e1-4" "e1-5")
+OUTPUT_FILE="/root/bindings.json"
 TMP_DIR="/tmp/nd_snoop"
-VALID_PREFIXES=("fe80::" "2001:db8:20:")
+CAPTURE_DURATION=30
 
+# Crear directorio temporal
 mkdir -p "$TMP_DIR"
-rm -f "$TMP_DIR"/*.log "$OUTPUT"
 
-echo "[*] Capturando mensajes ND durante $DURATION segundos..."
+# Inicializar archivo JSON con estructura correcta
+echo '{}' > "$OUTPUT_FILE"
 
-# Captura ND por interfaz (NS=135, NA=136)
-for intf in "${INTERFACES[@]}"; do
-    tcpdump -i "$intf" -v -n -l -c 1000 'icmp6 and (ip6[40] = 135 or ip6[40] = 136)' > "$TMP_DIR/$intf.log" 2>/dev/null &
+echo "[*] Capturando mensajes ND (NS/NA/RS/RA) durante ${CAPTURE_DURATION} segundos..."
+PIDS=()
+for IFACE in "${INTERFACES[@]}"; do
+    FILE="$TMP_DIR/$IFACE.pcap"
+    timeout "$CAPTURE_DURATION" tcpdump -i "$IFACE" -w "$FILE" \
+        'icmp6 and (ip6[40] == 133 or ip6[40] == 134 or ip6[40] == 135 or ip6[40] == 136)' &
+    PIDS+=($!)
 done
 
-sleep "$DURATION"
-pkill tcpdump 2>/dev/null
+for PID in "${PIDS[@]}"; do
+    wait "$PID"
+done
 
-echo "[*] Procesando mensajes ND..."
+echo "[*] Procesando paquetes ND..."
 
-declare -A binding_map
-timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+# Objeto JSON temporal para almacenar todos los bindings
+declare -A BINDINGS
 
-for intf in "${INTERFACES[@]}"; do
-    file="$TMP_DIR/$intf.log"
-    [[ ! -f "$file" ]] && continue
-
-    mac="" ; ipv6="" ; tlla=""
+for IFACE in "${INTERFACES[@]}"; do
+    FILE="$TMP_DIR/$IFACE.pcap"
+    [ -f "$FILE" ] || continue
+    
+    # Inicializar array para esta interfaz
+    BINDINGS["$IFACE"]="[]"
+    
+    # Procesar paquetes para esta interfaz
     while read -r line; do
-        # Captura MAC, dirección IPv6 y TLLA
-        [[ "$line" =~ ^[0-9]{2}:[0-9]{2}:[0-9]{2}.* > ([0-9a-f:]+), ethertype IPv6 ]] && mac="${BASH_REMATCH[1]}"
-        # Captura direcciones IPv6 (tanto link-local como global unicast)
-        [[ "$line" =~ ICMP6, neighbor (solicitation|advertisement).*([a-f0-9:]+) ]] && ipv6="${BASH_REMATCH[1]}"
-        [[ "$line" =~ option.*link-layer address.*([0-9a-f:]{17}) ]] && tlla="${BASH_REMATCH[1]}"
+        SRC_MAC=""
+        SRC_IP=""
+        TGT_IP=""
+        TGT_MAC=""
+        TYPE=""
+        
+        # Extraer MAC origen
+        if [[ "$line" =~ ([0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}) ]]; then
+            SRC_MAC=$(echo "${BASH_REMATCH[1]}" | tr '[:upper:]' '[:lower:]')
+        fi
 
-        if [[ -n "$mac" && -n "$ipv6" && -n "$tlla" ]]; then
-            # Validación 1: MAC == TLLA
-            [[ "$mac" != "$tlla" ]] && { mac="" ; ipv6="" ; tlla="" ; continue; }
+        # Extraer IPv6 origen
+        if [[ "$line" =~ (([0-9a-fA-F:]+)\.[0-9]+ > ([0-9a-fA-F:]+)\.[0-9]+) ]]; then
+            SRC_IP="${BASH_REMATCH[2],,}"
+        fi
 
-            # Validación 2: Prefijo válido (fe80:: o 2001:db8:20:)
-            valid_prefix=false
-            for prefix in "${VALID_PREFIXES[@]}"; do
-                if [[ "$ipv6" == "$prefix"* ]]; then
-                    valid_prefix=true
-                    break
+        # Extraer tipo de mensaje ICMPv6
+        if [[ "$line" =~ ICMP6, (.*), ]]; then
+            TYPE="${BASH_REMATCH[1]}"
+        fi
+
+        # Extraer información específica según el tipo de mensaje
+        case "$TYPE" in
+            "Neighbor Solicitation")
+                if [[ "$line" =~ target=([0-9a-fA-F:]+) ]]; then
+                    TGT_IP="${BASH_REMATCH[1],,}"
                 fi
-            done
-            $valid_prefix || { mac="" ; ipv6="" ; tlla="" ; continue; }
+                if [[ "$line" =~ target link-address: ([0-9a-fA-F:]+) ]]; then
+                    TGT_MAC=$(echo "${BASH_REMATCH[1]}" | tr '[:upper:]' '[:lower:]')
+                fi
+                ;;
+            "Neighbor Advertisement")
+                if [[ "$line" =~ target=([0-9a-fA-F:]+) ]]; then
+                    TGT_IP="${BASH_REMATCH[1],,}"
+                fi
+                if [[ "$line" =~ target link-address: ([0-9a-fA-F:]+) ]]; then
+                    TGT_MAC=$(echo "${BASH_REMATCH[1]}" | tr '[:upper:]' '[:lower:]')
+                fi
+                ;;
+            "Router Solicitation"|"Router Advertisement")
+                # También procesamos estos mensajes ya que pueden contener información útil
+                ;;
+        esac
 
-            # Validación 3: no duplicado
-            key="${intf}_${mac}_${ipv6}"
-            if [[ -z "${binding_map[$key]}" ]]; then
-                binding_map["$key"]="{\"mac\":\"$mac\",\"ipv6\":\"$ipv6\",\"interface\":\"$intf\",\"timestamp\":\"$timestamp\"}"
-                echo "[$intf] Binding válido: $ipv6 -> $mac"
+        # Determinar qué direcciones agregar a la tabla
+        if [[ -n "$SRC_MAC" ]]; then
+            TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+            
+            # Agregar dirección link-local si está presente
+            if [[ -n "$SRC_IP" && "$SRC_IP" =~ ^fe80:: ]]; then
+                BINDING=$(jq -n \
+                    --arg mac "$SRC_MAC" \
+                    --arg ipv6 "$SRC_IP" \
+                    --arg interface "$IFACE" \
+                    --arg timestamp "$TIMESTAMP" \
+                    '{mac: $mac, ipv6: $ipv6, interface: $interface, timestamp: $timestamp}')
+                
+                CURRENT=$(echo "${BINDINGS[$IFACE]}" | jq --argjson binding "$BINDING" '. + [$binding]')
+                BINDINGS["$IFACE"]="$CURRENT"
             fi
-
-            mac="" ; ipv6="" ; tlla=""
+            
+            # Agregar dirección objetivo si es global
+            if [[ -n "$TGT_IP" && ! "$TGT_IP" =~ ^fe80:: ]]; then
+                BINDING=$(jq -n \
+                    --arg mac "$SRC_MAC" \
+                    --arg ipv6 "$TGT_IP" \
+                    --arg interface "$IFACE" \
+                    --arg timestamp "$TIMESTAMP" \
+                    '{mac: $mac, ipv6: $ipv6, interface: $interface, timestamp: $timestamp}')
+                
+                CURRENT=$(echo "${BINDINGS[$IFACE]}" | jq --argjson binding "$BINDING" '. + [$binding]')
+                BINDINGS["$IFACE"]="$CURRENT"
+            fi
+            
+            # Agregar dirección MAC objetivo si es diferente
+            if [[ -n "$TGT_MAC" && "$TGT_MAC" != "$SRC_MAC" ]]; then
+                # Necesitamos la IP asociada a esta MAC (simplificación)
+                BINDING=$(jq -n \
+                    --arg mac "$TGT_MAC" \
+                    --arg ipv6 "$TGT_IP" \
+                    --arg interface "$IFACE" \
+                    --arg timestamp "$TIMESTAMP" \
+                    '{mac: $mac, ipv6: $ipv6, interface: $interface, timestamp: $timestamp}')
+                
+                CURRENT=$(echo "${BINDINGS[$IFACE]}" | jq --argjson binding "$BINDING" '. + [$binding]')
+                BINDINGS["$IFACE"]="$CURRENT"
+            fi
         fi
-    done < "$file"
+    done < <(tcpdump -nn -v -r "$FILE" 'icmp6 and (ip6[40] >= 133 and ip6[40] <= 136)' 2>/dev/null)
 done
 
-# Construir bindings.json
-echo "{" > "$OUTPUT"
-for intf in "${INTERFACES[@]}"; do
-    echo "  \"$intf\": [" >> "$OUTPUT"
-    count=0
-    for key in "${!binding_map[@]}"; do
-        if [[ "$key" == "$intf"_* ]]; then
-            [[ $count -ne 0 ]] && echo "," >> "$OUTPUT"
-            echo -n "    ${binding_map[$key]}" >> "$OUTPUT"
-            ((count++))
-        fi
-    done
-    echo -e "\n  ]," >> "$OUTPUT"
+# Combinar todos los bindings en el formato deseado
+echo "{" > "$OUTPUT_FILE"
+FIRST_IFACE=1
+for IFACE in "${INTERFACES[@]}"; do
+    if [ "$FIRST_IFACE" -eq 0 ]; then
+        echo "," >> "$OUTPUT_FILE"
+    else
+        FIRST_IFACE=0
+    fi
+    
+    echo -n "  \"$IFACE\": ${BINDINGS[$IFACE]}" >> "$OUTPUT_FILE"
 done
-sed -i '$ s/],/]/' "$OUTPUT"
-echo "}" >> "$OUTPUT"
+echo -e "\n}" >> "$OUTPUT_FILE"
 
-echo "[✓] Tabla final en: $OUTPUT"
-jq . "$OUTPUT"
+# Eliminar duplicados y ordenar
+jq 'walk(if type == "array" then unique_by(.ipv6) else . end)' "$OUTPUT_FILE" > "${OUTPUT_FILE}.tmp" && mv "${OUTPUT_FILE}.tmp" "$OUTPUT_FILE"
+
+echo "[✓] Tabla final en: $OUTPUT_FILE"
+jq . "$OUTPUT_FILE"
