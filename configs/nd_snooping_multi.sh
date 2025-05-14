@@ -1,74 +1,83 @@
 #!/bin/bash
 
 INTERFACES=("e1-2" "e1-3" "e1-4")
-BINDING_FILE="/root/bindings.json"
+DURATION=30
+OUTPUT="/root/bindings.json"
 TMP_DIR="/tmp/nd_snoop"
-CAPTURE_DURATION=30
+VALID_PREFIXES=("fe80::" "2001:db8:20:")
 
 mkdir -p "$TMP_DIR"
-echo '{}' > "$BINDING_FILE"
+rm -f "$TMP_DIR"/*.log "$OUTPUT"
 
-echo "[*] Capturando mensajes ND (NS/NA) durante ${CAPTURE_DURATION} segundos..."
-PIDS=()
-for IFACE in "${INTERFACES[@]}"; do
-    FILE="$TMP_DIR/$IFACE.pcap"
-    timeout "$CAPTURE_DURATION" tcpdump -i "$IFACE" -w "$FILE" \
-        'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' &
-    PIDS+=($!)
+echo "[*] Capturando mensajes ND durante $DURATION segundos..."
+
+# Captura ND por interfaz (NS=135, NA=136)
+for intf in "${INTERFACES[@]}"; do
+    tcpdump -i "$intf" -v -n -l -c 1000 'icmp6 and (ip6[40] = 135 or ip6[40] = 136)' > "$TMP_DIR/$intf.log" 2>/dev/null &
 done
 
-for PID in "${PIDS[@]}"; do
-    wait "$PID"
-done
+sleep "$DURATION"
+pkill tcpdump 2>/dev/null
 
-echo "[*] Procesando paquetes ND..."
-declare -A INTERFACE_BINDINGS
+echo "[*] Procesando mensajes ND..."
 
-for IFACE in "${INTERFACES[@]}"; do
-    FILE="$TMP_DIR/$IFACE.pcap"
-    PACKET_COUNT=$(tcpdump -nn -r "$FILE" 2>/dev/null | wc -l)
-    if [[ "$PACKET_COUNT" -eq 0 ]]; then
-        echo "[-] $IFACE no tiene paquetes ND, se omite."
-        continue
-    fi
+declare -A binding_map
+timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-    declare -A UNIQUE_BINDINGS=()
+for intf in "${INTERFACES[@]}"; do
+    file="$TMP_DIR/$intf.log"
+    [[ ! -f "$file" ]] && continue
 
+    mac="" ; ipv6="" ; tlla=""
     while read -r line; do
-        SRC_MAC=""
-        IPV6=""
+        # Captura MAC, dirección IPv6 y TLLA
+        [[ "$line" =~ ^[0-9]{2}:[0-9]{2}:[0-9]{2}.* > ([0-9a-f:]+), ethertype IPv6 ]] && mac="${BASH_REMATCH[1]}"
+        # Captura direcciones IPv6 (tanto link-local como global unicast)
+        [[ "$line" =~ ICMP6, neighbor (solicitation|advertisement).*([a-f0-9:]+) ]] && ipv6="${BASH_REMATCH[1]}"
+        [[ "$line" =~ option.*link-layer address.*([0-9a-f:]{17}) ]] && tlla="${BASH_REMATCH[1]}"
 
-        if [[ "$line" =~ ([0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}) ]]; then
-            SRC_MAC="${BASH_REMATCH[1],,}"
-        fi
+        if [[ -n "$mac" && -n "$ipv6" && -n "$tlla" ]]; then
+            # Validación 1: MAC == TLLA
+            [[ "$mac" != "$tlla" ]] && { mac="" ; ipv6="" ; tlla="" ; continue; }
 
-        if [[ "$line" =~ who\ has\ ([0-9a-fA-F:]+) ]]; then
-            IPV6="${BASH_REMATCH[1],,}"
-        elif [[ "$line" =~ tgt\ is\ ([0-9a-fA-F:]+) ]]; then
-            IPV6="${BASH_REMATCH[1],,}"
-        fi
+            # Validación 2: Prefijo válido (fe80:: o 2001:db8:20:)
+            valid_prefix=false
+            for prefix in "${VALID_PREFIXES[@]}"; do
+                if [[ "$ipv6" == "$prefix"* ]]; then
+                    valid_prefix=true
+                    break
+                fi
+            done
+            $valid_prefix || { mac="" ; ipv6="" ; tlla="" ; continue; }
 
-        if [[ -n "$SRC_MAC" && -n "$IPV6" ]]; then
-            KEY="${IPV6}_${SRC_MAC}"
-            if [[ -z "${UNIQUE_BINDINGS[$KEY]}" ]]; then
-                echo "[$IFACE] Binding encontrado: $IPV6 -> $SRC_MAC"
-                BINDING_JSON=$(jq -n \
-                    --arg mac "$SRC_MAC" \
-                    --arg ip "$IPV6" \
-                    --arg intf "$IFACE" \
-                    --arg ts "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
-                    '{mac: $mac, ipv6: $ip, interface: $intf, timestamp: $ts}')
-                UNIQUE_BINDINGS["$KEY"]="$BINDING_JSON"
+            # Validación 3: no duplicado
+            key="${intf}_${mac}_${ipv6}"
+            if [[ -z "${binding_map[$key]}" ]]; then
+                binding_map["$key"]="{\"mac\":\"$mac\",\"ipv6\":\"$ipv6\",\"interface\":\"$intf\",\"timestamp\":\"$timestamp\"}"
+                echo "[$intf] Binding válido: $ipv6 -> $mac"
             fi
-        fi
-    done < <(tcpdump -nn -r "$FILE" -e 'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' 2>/dev/null)
 
-    # Guardar los bindings de esta interfaz
-    if [[ ${#UNIQUE_BINDINGS[@]} -gt 0 ]]; then
-        INTERFACE_JSON=$(printf '%s\n' "${UNIQUE_BINDINGS[@]}" | jq -s '.')
-        jq --arg intf "$IFACE" --argjson data "$INTERFACE_JSON" '. + {($intf): $data}' "$BINDING_FILE" > "$BINDING_FILE.tmp" && mv "$BINDING_FILE.tmp" "$BINDING_FILE"
-    fi
+            mac="" ; ipv6="" ; tlla=""
+        fi
+    done < "$file"
 done
 
-echo "[✓] Tabla final en: $BINDING_FILE"
-jq . "$BINDING_FILE"
+# Construir bindings.json
+echo "{" > "$OUTPUT"
+for intf in "${INTERFACES[@]}"; do
+    echo "  \"$intf\": [" >> "$OUTPUT"
+    count=0
+    for key in "${!binding_map[@]}"; do
+        if [[ "$key" == "$intf"_* ]]; then
+            [[ $count -ne 0 ]] && echo "," >> "$OUTPUT"
+            echo -n "    ${binding_map[$key]}" >> "$OUTPUT"
+            ((count++))
+        fi
+    done
+    echo -e "\n  ]," >> "$OUTPUT"
+done
+sed -i '$ s/],/]/' "$OUTPUT"
+echo "}" >> "$OUTPUT"
+
+echo "[✓] Tabla final en: $OUTPUT"
+jq . "$OUTPUT"
