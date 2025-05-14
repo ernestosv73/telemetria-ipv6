@@ -66,7 +66,7 @@ for IFACE in "${INTERFACES[@]}"; do
                 --arg ipv6 "$IPV6" \
                 --arg interface "$IFACE" \
                 --arg timestamp "$TIMESTAMP" \
-                '{mac: $mac, ipv6: $ipv6, interface: $interface, timestamp: $ts}')
+                '{mac: $mac, ipv6: $ipv6, interface: $interface, timestamp: $timestamp}')
             
             CURRENT=$(echo "${INTERFACE_BINDINGS[$IFACE]}" | jq --argjson binding "$BINDING" '. + [$binding]')
             INTERFACE_BINDINGS["$IFACE"]="$CURRENT"
