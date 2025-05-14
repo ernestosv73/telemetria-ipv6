@@ -15,7 +15,7 @@ topology:
       startup-config: switch/config.json
       exec:
        - chmod +x /root/nd_snooping_multi.sh
-       - bash /root/nd_snooping_multi.sh
+       #- bash /root/nd_snooping_multi.sh
       
      
     # Nokia SRL Linux Router
