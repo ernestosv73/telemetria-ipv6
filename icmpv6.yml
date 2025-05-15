@@ -11,10 +11,10 @@ topology:
       image: ghcr.io/nokia/srlinux:24.10.1
       type: ixrd3
       binds:
-        - configs/nd_snooping_multi.sh:/root/nd_snooping_multi.sh
+        - configs/icmpv6_captura.py:/root/icmpv6_captura.py
       startup-config: switch/config.json
       exec:
-       - chmod +x /root/nd_snooping_multi.sh
+       - chmod +x /root/icmpv6_captura.py
        #- bash /root/nd_snooping_multi.sh
       
      
