@@ -5,21 +5,17 @@ BINDING_FILE="/root/bindings.json"
 TMP_DIR="/tmp/nd_snoop"
 CAPTURE_DURATION=30
 
-# Crear directorio temporal y archivo inicial
 mkdir -p "$TMP_DIR"
 echo '{}' > "$BINDING_FILE"
 
-echo "[*] Iniciando captura ND (Neighbor Solicitation/Advertisement) durante ${CAPTURE_DURATION} segundos..."
+# Iniciar capturas
 PIDS=()
-
-# Iniciar capturas paralelas
 for IFACE in "${INTERFACES[@]}"; do
     FILE="$TMP_DIR/$IFACE.pcap"
     timeout "$CAPTURE_DURATION" tcpdump -i "$IFACE" -w "$FILE" 'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' &
     PIDS+=($!)
 done
 
-# Esperar a que terminen todas las capturas
 for PID in "${PIDS[@]}"; do
     wait "$PID" 2>/dev/null
 done
@@ -34,28 +30,38 @@ for IFACE in "${INTERFACES[@]}"; do
 
     INTERFACE_BINDINGS["$IFACE"]="[]"
 
-    # Extraer información con tshark (usando campos compatibles)
-    tshark -r "$FILE" -T fields \
-        -e eth.src \
-        -e ipv6.src \
-        -e ipv6.dst \
-        -e icmpv6.type \
-        -e icmpv6.opt.linkaddr \
-        -e icmpv6.opt.targetaddr \
-        | while read -r mac ip_src ip_dst type lladdr targetaddr; do
+    # Mostrar contenido del paquete con formato legible
+    tcpdump -nn -e -r "$FILE" 2>/dev/null | while read -r line; do
 
-        FINAL_MAC="${lladdr:-$mac}"
+        SRC_MAC=""
+        DST_IP=""
+        SRC_IP=""
+        FINAL_MAC=""
         FINAL_IP=""
 
-        # Priorizar dirección del campo objetivo (targetaddr)
-        if [[ -n "$targetaddr" && "$targetaddr" != "::" ]]; then
-            FINAL_IP="$targetaddr"
-        elif [[ -n "$ip_src" && "$ip_src" != "::" ]]; then
-            FINAL_IP="$ip_src"
-        elif [[ -n "$ip_dst" && "$ip_dst" != "::" ]]; then
-            FINAL_IP="$ip_dst"
+        # Extraer MAC origen desde Ethernet header
+        if [[ "$line" =~ ([0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}) ]]; then
+            SRC_MAC="${BASH_REMATCH[1],,}"
         fi
 
+        # Extraer IPv6 destino en Neighbor Solicitation (who has)
+        if [[ "$line" =~ who\ has\ ([0-9a-fA-F:\.\%]+) ]]; then
+            DST_IP="${BASH_REMATCH[1],,}"
+            FINAL_IP="$DST_IP"
+        fi
+
+        # Extraer IPv6 origen en Neighbor Advertisement
+        if [[ "$line" =~ from\ ([0-9a-fA-F:\.\%]+) ]]; then
+            SRC_IP="${BASH_REMATCH[1],,}"
+            FINAL_IP="$SRC_IP"
+        fi
+
+        # Usar MAC si está disponible
+        if [[ -n "$SRC_MAC" ]]; then
+            FINAL_MAC="$SRC_MAC"
+        fi
+
+        # Registrar binding si tenemos ambos valores
         if [[ -n "$FINAL_MAC" && -n "$FINAL_IP" ]]; then
             TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
