@@ -34,23 +34,27 @@ for IFACE in "${INTERFACES[@]}"; do
 
     INTERFACE_BINDINGS["$IFACE"]="[]"
 
-    # Extraer información con tshark
+    # Extraer información con tshark (usando campos compatibles)
     tshark -r "$FILE" -T fields \
         -e eth.src \
         -e ipv6.src \
-        -e icmpv6.target \
+        -e ipv6.dst \
+        -e icmpv6.type \
         -e icmpv6.opt.linkaddr \
-        | while read -r mac ip_src target lladdr; do
+        -e icmpv6.opt.targetaddr \
+        | while read -r mac ip_src ip_dst type lladdr targetaddr; do
 
         FINAL_MAC="${lladdr:-$mac}"
         FINAL_IP=""
 
-        for candidate in "$ip_src" "$target"; do
-            if [[ -n "$candidate" && "$candidate" != "::" ]]; then
-                FINAL_IP="$candidate"
-                break
-            fi
-        done
+        # Priorizar dirección del campo objetivo (targetaddr)
+        if [[ -n "$targetaddr" && "$targetaddr" != "::" ]]; then
+            FINAL_IP="$targetaddr"
+        elif [[ -n "$ip_src" && "$ip_src" != "::" ]]; then
+            FINAL_IP="$ip_src"
+        elif [[ -n "$ip_dst" && "$ip_dst" != "::" ]]; then
+            FINAL_IP="$ip_dst"
+        fi
 
         if [[ -n "$FINAL_MAC" && -n "$FINAL_IP" ]]; then
             TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -85,7 +89,7 @@ done
     echo "}"
 } > "$BINDING_FILE"
 
-# Eliminar duplicados
+# Eliminar duplicados si jq está disponible
 if command -v jq &> /dev/null; then
     jq 'walk(if type == "array" then unique_by(.ipv6) else . end)' "$BINDING_FILE" > "${BINDING_FILE}.tmp" && mv "${BINDING_FILE}.tmp" "$BINDING_FILE"
 else
