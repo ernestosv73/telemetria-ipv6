@@ -3,10 +3,9 @@
 OUTPUT="nd_snooping.json"
 INTERFACES=("e1-2" "e1-3")
 CAPTURE_DURATION=30
-PERSISTENT=false  # Cambiar a true para ejecutar en bucle
+PERSISTENT=false
 LOGFILE="/tmp/nd_snooping.log"
 
-# Inicializa archivo JSON si no existe
 initialize_json() {
     echo '{}' > "$OUTPUT"
     for intf in "${INTERFACES[@]}"; do
@@ -14,21 +13,14 @@ initialize_json() {
     done
 }
 
-# Agrega binding al JSON solo si no existe
 add_binding() {
     local interface=$1
     local mac=$2
     local ipv6=$3
     local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-    # Validación básica
     if [[ ! "$mac" =~ ^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$ ]]; then
         echo "[!] MAC inválida: $mac" >> "$LOGFILE"
-        return
-    fi
-
-    if [[ ! "$ipv6" =~ ^([0-9a-fA-F:/]+)$ ]]; then
-        echo "[!] IPv6 inválida: $ipv6" >> "$LOGFILE"
         return
     fi
 
@@ -45,26 +37,38 @@ add_binding() {
     fi
 }
 
-# Función para capturar tráfico en una interfaz
 capture_interface() {
     local interface=$1
     while true; do
         echo "[*] Capturando NDP en interfaz $interface durante $CAPTURE_DURATION segundos..." >> "$LOGFILE"
 
         timeout "$CAPTURE_DURATION" tcpdump -i "$interface" -nn -U -w - icmp6 2>/dev/null |
-            tshark -r - -Y "icmpv6.type == 135 or icmpv6.type == 136" -T fields \
+            tshark -r - -T fields \
+                -e frame.interface_name \
                 -e eth.src \
                 -e icmpv6.opt.linkaddr \
                 -e ipv6.src \
-                -e icmpv6.target 2>/dev/null |
-            while read -r mac lladdr ipaddr target; do
+                -e icmpv6.target \
+                -e icmpv6.type \
+                2>/dev/null |
+            while read -r _iface mac lladdr ipaddr target type; do
 
-                # Usar ipaddr o target como posible dirección IPv6
-                for ipv6 in "$ipaddr" "$target"; do
-                    if [[ -n "$ipv6" ]]; then
-                        add_binding "$interface" "$mac" "$ipv6"
+                # Si viene MAC desde eth.src o icmpv6.opt.linkaddr
+                final_mac=${lladdr:-$mac}
+
+                # Elegir IPv6 entre ipaddr, target o ninguno
+                final_ip=""
+                for candidate in "$ipaddr" "$target"; do
+                    if [[ -n "$candidate" && "$candidate" != "::" ]]; then
+                        final_ip="$candidate"
+                        break
                     fi
                 done
+
+                # Registrar solo si hay MAC e IPv6 válida
+                if [[ -n "$final_mac" && -n "$final_ip" ]]; then
+                    add_binding "$interface" "$final_mac" "$final_ip"
+                fi
             done
         $PERSISTENT || break
         sleep 5
