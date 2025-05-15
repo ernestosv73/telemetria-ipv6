@@ -14,7 +14,7 @@ PIDS=()
 for IFACE in "${INTERFACES[@]}"; do
     PCAP_FILE="$TMP_DIR/$IFACE.pcap"
     timeout "$CAPTURE_DURATION" tcpdump -i "$IFACE" -w "$PCAP_FILE" \
-        'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' &
+        'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' >/dev/null 2>&1 &
     PIDS+=($!)
 done
 
@@ -29,46 +29,47 @@ declare -A INTERFACE_BINDINGS
 
 for IFACE in "${INTERFACES[@]}"; do
     PCAP_FILE="$TMP_DIR/$IFACE.pcap"
-    if [ ! -f "$PCAP_FILE" ]; then
-        echo "[!] No se encontró captura para la interfaz $IFACE"
-        INTERFACE_BINDINGS["$IFACE"]="[]"
+    INTERFACE_BINDINGS["$IFACE"]="[]"
+
+    if [ ! -s "$PCAP_FILE" ]; then
+        echo "[!] No hay datos para $IFACE"
         continue
     fi
 
-    INTERFACE_BINDINGS["$IFACE"]="[]"
+    while IFS=$'\t' read -r MAC SRCIP TARGET; do
+        MAC="${MAC,,}"
+        SRCIP="${SRCIP,,}"
+        TARGET="${TARGET,,}"
 
-    # Extraer MAC origen, dirección origen y dirección destino (target)
-    while IFS=$'\t' read -r SRC_MAC SRC_IP TARGET_IPV6; do
-        SRC_MAC=$(echo "$SRC_MAC" | tr '[:upper:]' '[:lower:]')
-        SRC_IP=$(echo "$SRC_IP" | tr '[:upper:]' '[:lower:]')
-        TARGET_IPV6=$(echo "$TARGET_IPV6" | tr '[:upper:]' '[:lower:]')
+        # Usar dirección más útil (TARGET para NA, SRCIP para NS)
+        IPV6="$SRCIP"
+        [[ "$TARGET" != "" && "$TARGET" != "::" ]] && IPV6="$TARGET"
 
-        for IPV6 in "$SRC_IP" "$TARGET_IPV6"; do
-            # Validar dirección IPv6
-            if [[ "$IPV6" =~ ^([0-9a-f:]+)$ && "$IPV6" != "::" ]]; then
-                KEY="${SRC_MAC}-${IPV6}"
-                if [[ -n "${global_seen[$KEY]}" ]]; then
-                    continue
-                fi
-                global_seen[$KEY]=1
-
-                TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-                BINDING=$(jq -n \
-                            --arg mac "$SRC_MAC" \
-                            --arg ipv6 "$IPV6" \
-                            --arg iface "$IFACE" \
-                            --arg timestamp "$TIMESTAMP" \
-                            '{mac: $mac, ipv6: $ipv6, interface: $iface, timestamp: $timestamp}')
-                CURRENT=$(echo "${INTERFACE_BINDINGS[$IFACE]}" | jq --argjson binding "$BINDING" '. + [$binding]')
-                INTERFACE_BINDINGS["$IFACE"]="$CURRENT"
-                echo "[$IFACE] Binding encontrado: $IPV6 -> $SRC_MAC"
+        # Validar
+        if [[ "$MAC" =~ ^([0-9a-f]{2}:){5}[0-9a-f]{2}$ && "$IPV6" =~ : ]]; then
+            KEY="${MAC}-${IPV6}"
+            if [[ -n "${global_seen[$KEY]}" ]]; then
+                continue
             fi
-        done
+            global_seen[$KEY]=1
+
+            TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+            BINDING=$(jq -n \
+                --arg mac "$MAC" \
+                --arg ipv6 "$IPV6" \
+                --arg iface "$IFACE" \
+                --arg timestamp "$TIMESTAMP" \
+                '{mac: $mac, ipv6: $ipv6, interface: $iface, timestamp: $timestamp}')
+            
+            CURRENT=$(echo "${INTERFACE_BINDINGS[$IFACE]}" | jq --argjson binding "$BINDING" '. + [$binding]')
+            INTERFACE_BINDINGS["$IFACE"]="$CURRENT"
+            echo "[$IFACE] Binding encontrado: $IPV6 -> $MAC"
+        fi
     done < <(tshark -r "$PCAP_FILE" -T fields -e eth.src -e ipv6.src -e icmpv6.nd.target_address \
              -Y 'icmpv6.type == 135 || icmpv6.type == 136' 2>/dev/null)
 done
 
-# Generar JSON final
+# Crear JSON final
 {
   echo "{"
   FIRST=1
@@ -78,4 +79,14 @@ done
       else
           echo ","
       fi
-      echo -n "  \"$IFACE\": ${INTERFACE_B_
+      echo -n "  \"$IFACE\": ${INTERFACE_BINDINGS[$IFACE]}"
+  done
+  echo -e "\n}"
+} > "$BINDING_FILE"
+
+# Deduplicar por IPv6 final
+jq 'to_entries | map({key: .key, value: (.value | unique_by(.ipv6))}) | from_entries' "$BINDING_FILE" \
+    > "${BINDING_FILE}.tmp" && mv "${BINDING_FILE}.tmp" "$BINDING_FILE"
+
+echo "[✓] Tabla final generada en: $BINDING_FILE"
+jq . "$BINDING_FILE"
