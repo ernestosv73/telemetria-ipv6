@@ -26,6 +26,9 @@ done
 
 echo "[*] Procesando paquetes ND..."
 
+# Arreglo global para evitar duplicados en todas las interfaces
+declare -A global_seen
+
 # Declaramos un arreglo asociativo para almacenar los bindings de cada interfaz
 declare -A INTERFACE_BINDINGS
 
@@ -37,32 +40,35 @@ for IFACE in "${INTERFACES[@]}"; do
         continue
     fi
 
-    # Inicializamos el array JSON y el hash para detectar duplicados por IPv6 en la interfaz
+    # Inicializamos el array JSON para la interfaz
     INTERFACE_BINDINGS["$IFACE"]="[]"
-    declare -A seen
 
     # Procesamos la captura con tcpdump
     while IFS= read -r line; do
         SRC_MAC=""
         IPV6=""
+
         # Extraer la MAC de origen (link-layer)
         if [[ "$line" =~ ([0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}) ]]; then
             SRC_MAC="${BASH_REMATCH[1],,}"
         fi
 
-        # Distinguir entre mensajes NS y NA para extraer la IPv6 objetivo
+        # Extraer la dirección IPv6 objetivo según el mensaje ND
         if [[ "$line" =~ who[[:space:]]+has[[:space:]]+([0-9a-fA-F:]+) ]]; then
             IPV6="${BASH_REMATCH[1],,}"
         elif [[ "$line" =~ tgt[[:space:]]+is[[:space:]]+([0-9a-fA-F:]+) ]]; then
             IPV6="${BASH_REMATCH[1],,}"
         fi
 
-        # Registrar binding solo si se extrajeron ambos valores y no se ha incluido ya esta IPv6
+        # Registrar binding solo si se extrajeron ambos valores
         if [[ -n "$SRC_MAC" && -n "$IPV6" ]]; then
-            if [[ -n "${seen[$IPV6]}" ]]; then
+            # Creamos una clave global para evitar duplicados en todas las interfaces
+            KEY="${SRC_MAC}-${IPV6}"
+            if [[ -n "${global_seen[$KEY]}" ]]; then
                 continue
             fi
-            seen["$IPV6"]=1
+            global_seen[$KEY]=1
+
             TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
             BINDING=$(jq -n \
                         --arg mac "$SRC_MAC" \
@@ -76,25 +82,24 @@ for IFACE in "${INTERFACES[@]}"; do
             echo "[$IFACE] Binding encontrado: $IPV6 -> $SRC_MAC"
         fi
     done < <(tcpdump -nn -r "$PCAP_FILE" -e 'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' 2>/dev/null)
-
-    # Limpiar la variable 'seen' para la siguiente interfaz
-    unset seen
 done
 
 # Construir el archivo JSON final
-echo "{" > "$BINDING_FILE"
-FIRST=1
-for IFACE in "${INTERFACES[@]}"; do
-    if [ "$FIRST" -eq 1 ]; then
-        FIRST=0
-    else
-        echo "," >> "$BINDING_FILE"
-    fi
-    echo -n "  \"$IFACE\": ${INTERFACE_BINDINGS[$IFACE]}" >> "$BINDING_FILE"
-done
-echo -e "\n}" >> "$BINDING_FILE"
+{
+  echo "{"
+  FIRST=1
+  for IFACE in "${INTERFACES[@]}"; do
+      if [ "$FIRST" -eq 1 ]; then
+          FIRST=0
+      else
+          echo ","
+      fi
+      echo -n "  \"$IFACE\": ${INTERFACE_BINDINGS[$IFACE]}"
+  done
+  echo -e "\n}"
+} > "$BINDING_FILE"
 
-# Aplicar deduplicación por interfaz con jq (por seguridad)
+# Aplicar deduplicación final (por si acaso) usando jq
 jq 'to_entries | map({key: .key, value: (.value | unique_by(.ipv6))}) | from_entries' "$BINDING_FILE" \
     > "${BINDING_FILE}.tmp" && mv "${BINDING_FILE}.tmp" "$BINDING_FILE"
 
