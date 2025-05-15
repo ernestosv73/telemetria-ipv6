@@ -29,33 +29,34 @@ for IFACE in "${INTERFACES[@]}"; do
     FILE="$TMP_DIR/$IFACE.pcap"
     [ -f "$FILE" ] || continue
 
-    # Procesar cada paquete
+    # Procesar cada paquete con formato más robusto
     while read -r line; do
         SRC_MAC=""
         SRC_IP=""
         TGT_IP=""
         TYPE=""
 
-        # Extraer MAC origen (si está presente)
+        # Extraer MAC origen (mejor expresión regular)
         if [[ "$line" =~ ([0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}) ]]; then
             SRC_MAC="${BASH_REMATCH[1],,}"
         fi
 
-        # Extraer IP origen
-        if [[ "$line" =~ IP6\ ([0-9a-fA-F:]+)\ > ]]; then
+        # Extraer IP origen (formato más seguro)
+        if [[ "$line" =~ IP6[[:space:]]+([0-9a-fA-F:]+)[[:space:]]+> ]]; then
             SRC_IP="${BASH_REMATCH[1],,}"
         fi
 
-        # Procesar según tipo de mensaje
-        if [[ "$line" =~ "neighbor solicitation" ]]; then
-            if [[ "$line" =~ who\ has\ ([0-9a-fA-F:]+) ]]; then
+        # Determinar tipo de mensaje
+        if [[ "$line" =~ "ICMP6, neighbor solicitation" ]]; then
+            TYPE="NS"
+            if [[ "$line" =~ "who has ([0-9a-fA-F:]+)" ]]; then
                 TGT_IP="${BASH_REMATCH[1],,}"
             fi
-        elif [[ "$line" =~ "router solicitation" ]]; then
-            # Usar IP origen para RS
+        elif [[ "$line" =~ "ICMP6, router solicitation" ]]; then
+            TYPE="RS"
             TGT_IP="$SRC_IP"
-        elif [[ "$line" =~ "router advertisement" ]]; then
-            # Usar IP origen para RA
+        elif [[ "$line" =~ "ICMP6, router advertisement" ]]; then
+            TYPE="RA"
             TGT_IP="$SRC_IP"
         fi
 
@@ -63,7 +64,6 @@ for IFACE in "${INTERFACES[@]}"; do
         if [[ -n "$TGT_IP" ]]; then
             TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
             
-            # Para mensajes sin MAC (como ::), usar una MAC genérica
             MAC_TO_USE="${SRC_MAC:-00:00:00:00:00:00}"
             
             BINDING=$(jq -n \
@@ -76,10 +76,10 @@ for IFACE in "${INTERFACES[@]}"; do
             CURRENT=$(echo "${BINDINGS[$IFACE]}" | jq --argjson binding "$BINDING" '. + [$binding]')
             BINDINGS["$IFACE"]="$CURRENT"
             
-            echo "[$IFACE] Registrado: $TGT_IP -> $MAC_TO_USE"
+            echo "[$IFACE] Registrado: $TGT_IP -> $MAC_TO_USE ($TYPE)"
         fi
 
-    done < <(tcpdump -nn -v -r "$FILE" 'icmp6' 2>/dev/null)
+    done < <(tcpdump -nn -r "$FILE" -v 'icmp6' 2>/dev/null)
 done
 
 # Generar JSON final
