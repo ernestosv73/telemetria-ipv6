@@ -29,46 +29,41 @@ for IFACE in "${INTERFACES[@]}"; do
     FILE="$TMP_DIR/$IFACE.pcap"
     [ -f "$FILE" ] || continue
 
-    # Procesar cada paquete con formato más robusto
-    while read -r line; do
+    # Procesar con formato más simple y confiable
+    tcpdump -nn -r "$FILE" -e 'icmp6' 2>/dev/null | while read -r line; do
         SRC_MAC=""
-        SRC_IP=""
-        TGT_IP=""
-        TYPE=""
-
-        # Extraer MAC origen (mejor expresión regular)
+        IPV6=""
+        
+        # Extraer MAC origen (primer MAC en la línea)
         if [[ "$line" =~ ([0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}) ]]; then
             SRC_MAC="${BASH_REMATCH[1],,}"
         fi
 
-        # Extraer IP origen (formato más seguro)
-        if [[ "$line" =~ IP6[[:space:]]+([0-9a-fA-F:]+)[[:space:]]+> ]]; then
-            SRC_IP="${BASH_REMATCH[1],,}"
-        fi
-
-        # Determinar tipo de mensaje
-        if [[ "$line" =~ "ICMP6, neighbor solicitation" ]]; then
-            TYPE="NS"
-            if [[ "$line" =~ "who has ([0-9a-fA-F:]+)" ]]; then
-                TGT_IP="${BASH_REMATCH[1],,}"
+        # Extraer IPv6 basado en patrones específicos
+        if [[ "$line" =~ "who has" ]]; then
+            # Neighbor Solicitation
+            if [[ "$line" =~ who\ has\ ([0-9a-fA-F:]+) ]]; then
+                IPV6="${BASH_REMATCH[1],,}"
             fi
-        elif [[ "$line" =~ "ICMP6, router solicitation" ]]; then
-            TYPE="RS"
-            TGT_IP="$SRC_IP"
-        elif [[ "$line" =~ "ICMP6, router advertisement" ]]; then
-            TYPE="RA"
-            TGT_IP="$SRC_IP"
+        elif [[ "$line" =~ "tgt is" ]]; then
+            # Neighbor Advertisement
+            if [[ "$line" =~ tgt\ is\ ([0-9a-fA-F:]+) ]]; then
+                IPV6="${BASH_REMATCH[1],,}"
+            fi
+        elif [[ "$line" =~ "router solicitation" ]]; then
+            # Router Solicitation (usar dirección de origen)
+            if [[ "$line" =~ ([0-9a-fA-F:]+)\. ]]; then
+                IPV6="${BASH_REMATCH[1],,}"
+            fi
         fi
 
-        # Registrar binding si tenemos información válida
-        if [[ -n "$TGT_IP" ]]; then
+        # Registrar binding si tenemos ambos valores
+        if [[ -n "$SRC_MAC" && -n "$IPV6" ]]; then
             TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
             
-            MAC_TO_USE="${SRC_MAC:-00:00:00:00:00:00}"
-            
             BINDING=$(jq -n \
-                --arg mac "$MAC_TO_USE" \
-                --arg ipv6 "$TGT_IP" \
+                --arg mac "$SRC_MAC" \
+                --arg ipv6 "$IPV6" \
                 --arg interface "$IFACE" \
                 --arg timestamp "$TIMESTAMP" \
                 '{mac: $mac, ipv6: $ipv6, interface: $interface, timestamp: $timestamp}')
@@ -76,10 +71,9 @@ for IFACE in "${INTERFACES[@]}"; do
             CURRENT=$(echo "${BINDINGS[$IFACE]}" | jq --argjson binding "$BINDING" '. + [$binding]')
             BINDINGS["$IFACE"]="$CURRENT"
             
-            echo "[$IFACE] Registrado: $TGT_IP -> $MAC_TO_USE ($TYPE)"
+            echo "[$IFACE] Registrado: $IPV6 -> $SRC_MAC"
         fi
-
-    done < <(tcpdump -nn -r "$FILE" -v 'icmp6' 2>/dev/null)
+    done
 done
 
 # Generar JSON final
