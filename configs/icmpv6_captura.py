@@ -81,32 +81,42 @@ def start_interface_capture(interface):
     current_block = []
     print(f"[*] Iniciando captura en interfaz: {interface}")
 
-    tcpdump_filter = "icmp6 and (icmp6[0] == 133 or icmp6[0] == 135)"
-    proc = subprocess.Popen(
-        ["sudo", "tcpdump", "-l", "-i", interface, "-v", "-n", tcpdump_filter],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1
-    )
+    tcpdump_filter = "icmp6"
+    try:
+        proc = subprocess.Popen(
+            ["sudo", "tcpdump", "-l", "-i", interface, "-v", "-n", tcpdump_filter],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1
+        )
+        processes.append(proc)
 
-    for line in proc.stdout:
-        line = line.strip()
-        if line.startswith("IP6"):
+        print(f"[✓] tcpdump iniciado en {interface}")
+        packet_count = 0
+
+        for line in proc.stdout:
+            line = line.strip()
+            if "ICMP6" in line:
+                packet_count += 1
+                print(f"[PACKET] {interface} | {line[:80]}...")  # Mostrar parte del paquete
+
+            if line.startswith("IP6"):
+                flush_block([{"interface": interface, "block": current_block}])
+                current_block = []
+            current_block.append(line)
+
+        # Vaciar último bloque
+        if current_block:
             flush_block([{"interface": interface, "block": current_block}])
-            current_block = []
-        current_block.append(line)
 
-    # Si termina inesperadamente
-    if current_block:
-        flush_block([{"interface": interface, "block": current_block}])
+        print(f"[✓] Finalizada captura en {interface} | Paquetes procesados: {packet_count}")
+
+    except Exception as e:
+        print(f"[ERROR] Falló captura en {interface}: {str(e)}")
 
 def signal_handler(sig, frame):
     print("\n[+] Captura detenida. Escribiendo archivo JSON...")
-    # Vaciar bloques pendientes
-    interface_data = [{"interface": intf, "block": []} for intf in INTERFACES]
-    for p in processes:
-        p.join(timeout=0.1)
     with open("icmpv6_bindings.json", "w") as f:
         json.dump(bindings, f, indent=2)
     print("[✓] Archivo generado: icmpv6_bindings.json")
