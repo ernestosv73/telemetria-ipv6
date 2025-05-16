@@ -1,83 +1,85 @@
 import subprocess
-import json
-import signal
 import re
-from collections import defaultdict
+import json
 from datetime import datetime, timezone
+import signal
+import sys
+from collections import defaultdict
 
-INTERFACE = "e1-2"
+# Configuración
+interface = "e1-2"
+output_file = "icmpv6_bindings.json"
 bindings = defaultdict(list)
-seen_entries = set()
-current_block = []
-
-def flush_block():
-    global current_block
-    mac = None
-    ipv6_src = None
-    is_valid_packet = False
-
-    print("\n[DEBUG] Procesando bloque:")
-    for line in current_block:
-        print(f"[DEBUG] {line}")
-
-        if "neighbor solicitation" in line or "router solicitation" in line:
-            is_valid_packet = True
-
-        match_ipv6_src = re.search(r'([0-9a-f:]+)\s+>\s+[0-9a-f:]+', line)
-        if match_ipv6_src:
-            src_candidate = match_ipv6_src.group(1)
-            if src_candidate != "::":
-                ipv6_src = src_candidate
-                print(f"[DEBUG] IPv6 origen detectado: {ipv6_src}")
-
-
-        match_mac = re.search(r'source link-address option.*?:\s+([0-9a-f:]{17})', line)
-        if match_mac:
-            mac = match_mac.group(1)
-            print(f"[DEBUG] MAC detectada: {mac}")
-
-    if is_valid_packet and mac and ipv6_src:
-        key = (mac, ipv6_src)
-        if key not in seen_entries:
-            seen_entries.add(key)
-            entry = {
-                "mac": mac,
-                "ipv6": ipv6_src,
-                "interface": INTERFACE,
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            }
-            bindings[INTERFACE].append(entry)
-            print(f"[✓] Capturado: {entry}")
-    else:
-        print(f"[DEBUG] Paquete descartado: válido={is_valid_packet}, mac={mac}, ipv6={ipv6_src}")
-
-    current_block = []
+ipv6_seen = set()
+mac = None  # Última MAC detectada
 
 def signal_handler(sig, frame):
-    print("\n[+] Captura detenida. Escribiendo archivo JSON...")
-    flush_block()
-    with open("icmpv6_bindings.json", "w") as f:
+    print("\n[+] Captura detenida. Escribiendo archivo JSON...\n")
+    with open(output_file, "w") as f:
         json.dump(bindings, f, indent=2)
-    print("[✓] Archivo generado: icmpv6_bindings.json")
-    exit(0)
+    print(f"[✓] Archivo generado: {output_file}")
+    sys.exit(0)
 
 signal.signal(signal.SIGINT, signal_handler)
 
-print(f"[*] Capturando ICMPv6 en la interfaz {INTERFACE}... Presiona Ctrl+C para detener.")
+# Ejecutar tcpdump
+print(f"[*] Capturando ICMPv6 en la interfaz {interface}... Presiona Ctrl+C para detener.\n")
 
-# Filtro para RS (133) y NS (135)
-tcpdump_filter = "icmp6 and (icmp6[0] == 133 or icmp6[0] == 135)"
+tcpdump_cmd = [
+    "tcpdump",
+    "-i", interface,
+    "-vvv",
+    "-l",
+    "icmp6"
+]
 
-proc = subprocess.Popen(
-    ["tcpdump", "-l", "-i", INTERFACE, "-v", "-n", tcpdump_filter],
-    stdout=subprocess.PIPE,
-    stderr=subprocess.STDOUT,
-    text=True,
-    bufsize=1
-)
+process = subprocess.Popen(tcpdump_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 
-for line in proc.stdout:
+for line in process.stdout:
     line = line.strip()
-    if line.startswith("IP6"):
-        flush_block()
-    current_block.append(line)
+    if not line:
+        continue
+
+    print(f"[DEBUG] {line}")
+
+    timestamp = datetime.now(timezone.utc).isoformat()
+
+    # Capturar MAC desde la opción "source link-address"
+    match_mac = re.search(r'source link-address option.*?: ([0-9a-f:]{17})', line)
+    if match_mac:
+        mac = match_mac.group(1).lower()
+        print(f"[DEBUG] MAC detectada: {mac}")
+
+    # Capturar dirección IPv6 origen (link-local o global)
+    match_ipv6_src = re.search(r'^.* IP6 ([0-9a-f:]+) > ', line)
+    if match_ipv6_src:
+        ipv6 = match_ipv6_src.group(1).lower()
+        if (ipv6.startswith("fe80::") or ipv6.startswith("2001:db8:")) and mac:
+            key = (mac, ipv6)
+            if key not in ipv6_seen:
+                entry = {
+                    "mac": mac,
+                    "ipv6": ipv6,
+                    "interface": interface,
+                    "timestamp": timestamp
+                }
+                bindings[interface].append(entry)
+                ipv6_seen.add(key)
+                print(f"[✓] Capturado: {entry}")
+
+    # Capturar dirección IPv6 objetivo de NS ("who has ...")
+    match_ns = re.search(r'who has ([0-9a-f:]+)', line)
+    if match_ns:
+        ipv6_target = match_ns.group(1).lower()
+        if ipv6_target.startswith("2001:db8:") and mac:
+            key = (mac, ipv6_target)
+            if key not in ipv6_seen:
+                entry = {
+                    "mac": mac,
+                    "ipv6": ipv6_target,
+                    "interface": interface,
+                    "timestamp": timestamp
+                }
+                bindings[interface].append(entry)
+                ipv6_seen.add(key)
+                print(f"[✓] Capturado: {entry}")
