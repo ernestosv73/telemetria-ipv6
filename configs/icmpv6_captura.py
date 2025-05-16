@@ -16,22 +16,24 @@ def flush_block():
     ipv6_src = None
     is_valid_packet = False
 
+    print("\n[DEBUG] Procesando bloque:")
     for line in current_block:
-        # Solo procesar NS o RS, evitar RAs
+        print(f"[DEBUG] {line}")
+
         if "neighbor solicitation" in line or "router solicitation" in line:
             is_valid_packet = True
 
-        # Dirección IPv6 origen (no "::")
         match_ipv6_src = re.search(r'IP6\s+([0-9a-f:]+)\s+>\s+', line)
         if match_ipv6_src:
             src_candidate = match_ipv6_src.group(1)
             if src_candidate != "::":
                 ipv6_src = src_candidate
+                print(f"[DEBUG] IPv6 origen detectado: {ipv6_src}")
 
-        # MAC real del emisor
         match_mac = re.search(r'source link-address option.*?:\s+([0-9a-f:]{17})', line)
         if match_mac:
             mac = match_mac.group(1)
+            print(f"[DEBUG] MAC detectada: {mac}")
 
     if is_valid_packet and mac and ipv6_src:
         key = (mac, ipv6_src)
@@ -45,6 +47,8 @@ def flush_block():
             }
             bindings[INTERFACE].append(entry)
             print(f"[✓] Capturado: {entry}")
+    else:
+        print(f"[DEBUG] Paquete descartado: válido={is_valid_packet}, mac={mac}, ipv6={ipv6_src}")
 
     current_block = []
 
@@ -60,7 +64,7 @@ signal.signal(signal.SIGINT, signal_handler)
 
 print(f"[*] Capturando ICMPv6 en la interfaz {INTERFACE}... Presiona Ctrl+C para detener.")
 
-# Solo paquetes tipo 133 (RS), 135 (NS)
+# Filtro para RS (133) y NS (135)
 tcpdump_filter = "icmp6 and (icmp6[0] == 133 or icmp6[0] == 135)"
 
 proc = subprocess.Popen(
