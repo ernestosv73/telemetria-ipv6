@@ -1,68 +1,108 @@
-#!/bin/bash
+import subprocess
+import json
+import signal
+import re
+from collections import defaultdict
+from datetime import datetime, timezone
 
-INTERFACES=("e1-2" "e1-3" "e1-4" "e1-5")
-BINDING_FILE="/root/bindings.json"
-TMP_DIR="/tmp/nd_snoop"
-CAPTURE_DURATION=30
+INTERFACE = "e1-2"
+bindings = defaultdict(list)
+seen_entries = set()
+current_block = []
 
-mkdir -p "$TMP_DIR"
+def add_entry(mac, ipv6):
+    key = (mac, ipv6)
+    if key not in seen_entries:
+        seen_entries.add(key)
+        entry = {
+            "mac": mac,
+            "ipv6": ipv6,
+            "interface": INTERFACE,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        bindings[INTERFACE].append(entry)
+        print(f"[✓] Capturado: {entry}")
 
-# Crear archivo JSON vacío si no existe
-if [ ! -f "$BINDING_FILE" ]; then
-    echo '{"bindings": []}' > "$BINDING_FILE"
-fi
+def flush_block():
+    global current_block
+    mac = None
+    ipv6_link_local = None
+    ipv6_global = None
+    is_valid_packet = False
 
-echo "[*] Capturando mensajes ND (NS/NA) durante ${CAPTURE_DURATION} segundos..."
-PIDS=()
-for IFACE in "${INTERFACES[@]}"; do
-    FILE="$TMP_DIR/$IFACE.pcap"
-    timeout "$CAPTURE_DURATION" tcpdump -i "$IFACE" -w "$FILE" \
-        'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' &
-    PIDS+=($!)
-done
+    print("\n[DEBUG] Procesando bloque:")
+    for line in current_block:
+        print(f"[DEBUG] {line}")
 
-for PID in "${PIDS[@]}"; do
-    wait "$PID"
-done
+        # Marcar paquetes válidos
+        if "neighbor solicitation" in line or "router solicitation" in line:
+            is_valid_packet = True
 
-echo "[*] Procesando paquetes ND..."
-for IFACE in "${INTERFACES[@]}"; do
-    FILE="$TMP_DIR/$IFACE.pcap"
-    INTF="$IFACE"
+        # Extraer MAC desde "source link-address option"
+        match_mac = re.search(r'source link-address option.*?:\s+([0-9a-f:]{17})', line)
+        if match_mac:
+            mac = match_mac.group(1).lower()
+            print(f"[DEBUG] MAC detectada: {mac}")
 
-    tcpdump -nn -r "$FILE" 'icmp6 and (ip6[40] == 135 or ip6[40] == 136)' -e | while read -r line; do
-        echo "[*] Línea: $line"  # Depuración
+        # Extraer IPv6 origen (ej: fe80::...)
+        match_ipv6_src = re.search(r'([0-9a-f:]+)\s+>\s+[0-9a-f:]+', line)
+        if match_ipv6_src:
+            src_candidate = match_ipv6_src.group(1)
+            if src_candidate != "::":
+                if src_candidate.startswith("fe80"):
+                    ipv6_link_local = src_candidate
+                    print(f"[DEBUG] IPv6 link-local detectado: {ipv6_link_local}")
+                else:
+                    ipv6_global = src_candidate
+                    print(f"[DEBUG] IPv6 global detectado: {ipv6_global}")
 
-        # Extraer la MAC origen
-        if [[ "$line" =~ ([0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}) ]]; then
-            SRC_MAC="${BASH_REMATCH[1]}"
-        else
-            SRC_MAC=""
-        fi
+        # Extraer IPv6 objetivo en Neighbor Solicitation ("who has")
+        match_target = re.search(r'who has ([0-9a-f:]+)', line)
+        if match_target:
+            target_candidate = match_target.group(1)
+            if target_candidate.startswith("fe80"):
+                ipv6_link_local = target_candidate
+                print(f"[DEBUG] IPv6 link-local (target) detectado: {ipv6_link_local}")
+            else:
+                ipv6_global = target_candidate
+                print(f"[DEBUG] IPv6 global (target) detectado: {ipv6_global}")
 
-        # Extraer la dirección IPv6
-        if [[ "$line" =~ who\ has\ ([0-9a-f:]+) ]]; then
-            IPV6="${BASH_REMATCH[1]}"
-        elif [[ "$line" =~ tgt\ is\ ([0-9a-f:]+) ]]; then
-            IPV6="${BASH_REMATCH[1]}"
-        else
-            IPV6=""
-        fi
+    # Solo si hay MAC, guardar ambas direcciones posibles
+    if is_valid_packet and mac:
+        if ipv6_link_local:
+            add_entry(mac, ipv6_link_local)
+        if ipv6_global:
+            add_entry(mac, ipv6_global)
+    else:
+        print(f"[DEBUG] Paquete descartado: válido={is_valid_packet}, mac={mac}")
 
-        # Guardar binding si hay MAC e IPv6 válidas
-        if [[ -n "$SRC_MAC" && -n "$IPV6" ]]; then
-            echo "Binding encontrado: $IPV6 -> $SRC_MAC"
+    current_block = []
 
-            EXISTS=$(jq --arg ip "$IPV6" '.bindings[] | select(.ipv6 == $ip)' "$BINDING_FILE")
-            if [ -z "$EXISTS" ]; then
-                TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-                jq --arg mac "$SRC_MAC" --arg ip "$IPV6" --arg intf "$INTF" --arg ts "$TIMESTAMP" \
-                '.bindings += [{"mac": $mac, "ipv6": $ip, "interface": $intf, "timestamp": $ts}]' \
-                "$BINDING_FILE" > "${BINDING_FILE}.tmp" && mv "${BINDING_FILE}.tmp" "$BINDING_FILE"
-            fi
-        fi
-    done
-done
+def signal_handler(sig, frame):
+    print("\n[+] Captura detenida. Escribiendo archivo JSON...")
+    flush_block()
+    with open("icmpv6_bindings.json", "w") as f:
+        json.dump(bindings, f, indent=2)
+    print("[✓] Archivo generado: icmpv6_bindings.json")
+    exit(0)
 
-echo "[✓] Tabla final en: $BINDING_FILE"
-jq . "$BINDING_FILE"
+signal.signal(signal.SIGINT, signal_handler)
+
+print(f"[*] Capturando ICMPv6 en la interfaz {INTERFACE}... Presiona Ctrl+C para detener.")
+
+# Filtro para RS (133) y NS (135)
+tcpdump_filter = "icmp6 and (icmp6[0] == 133 or icmp6[0] == 135)"
+
+proc = subprocess.Popen(
+    ["sudo", "tcpdump", "-l", "-i", INTERFACE, "-v", "-n", tcpdump_filter],
+    stdout=subprocess.PIPE,
+    stderr=subprocess.STDOUT,
+    text=True,
+    bufsize=1
+)
+
+for line in proc.stdout:
+    line = line.strip()
+    if line.startswith("IP6"):
+        flush_block()
+    current_block.append(line)
