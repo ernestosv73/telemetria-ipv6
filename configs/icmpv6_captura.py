@@ -1,85 +1,83 @@
 import subprocess
-import re
-from datetime import datetime
 import json
-import sys
+import signal
+import re
+from collections import defaultdict
+from datetime import datetime, timezone
 
-# Función para extraer IPv6 y MAC desde cualquier línea relevante
-def extract_icmp6_info(line):
-    # Patrón para IPv6
-    ipv6_pattern = r"([0-9a-fA-F:]+)(?=\s*[>|$])"
-    # Patrón para MAC (en varios formatos comunes)
-    mac_pattern = r"([0-9a-fA-F]{1,2}:[0-9a-fA-F]{1,2}:[0-9a-fA-F]{1,2}:[0-9a-fA-F]{1,2}:[0-9a-fA-F]{1,2}:[0-9a-fA-F]{1,2})"
+INTERFACE = "e1-2"
+bindings = defaultdict(list)
+seen_entries = set()
+current_block = []
 
-    # Extraer IPv6
-    ipv6_match = re.search(ipv6_pattern, line)
-    if not ipv6_match:
-        return None, None
+def flush_block():
+    global current_block
+    mac = None
+    ipv6 = None
 
-    ipv6 = ipv6_match.group(1)
+    for line in current_block:
+        # Línea con dirección IPv6 origen
+        match_ipv6_src = re.search(r'IP6.*?([0-9a-f:]+) >', line)
+        if match_ipv6_src:
+            ipv6 = match_ipv6_src.group(1)
 
-    # Si es Neighbor Solicitation, buscar "who has"
-    if "who has" in line:
-        who_has_pos = line.find("who has ")
-        if who_has_pos != -1:
-            ipv6_in_who_has = line[who_has_pos + 8:].strip().split()[0]
-            ipv6 = ipv6_in_who_has
+        # Línea con dirección IPv6 "who has"
+        match_ipv6_who_has = re.search(r'who has ([0-9a-f:]+)', line)
+        if match_ipv6_who_has:
+            ipv6 = match_ipv6_who_has.group(1)
 
-    # Extraer MAC
-    mac_match = re.search(mac_pattern, line)
-    mac = mac_match.group(1).lower() if mac_match else None
+        # Línea con opción de dirección MAC
+        match_mac = re.search(r'link-address option.*?: ([0-9a-f:]{17})', line)
+        if match_mac:
+            mac = match_mac.group(1)
 
-    return ipv6, mac
+        # Opción tipo 14 (usualmente en NS)
+        match_unknown_opt = re.search(r'0x0000:\s+([0-9a-f]{4})\s+([0-9a-f]{4})\s+([0-9a-f]{4})', line)
+        if match_unknown_opt:
+            hex_mac = match_unknown_opt.groups()
+            mac = ":".join([
+                hex_mac[0][:2], hex_mac[0][2:],
+                hex_mac[1][:2], hex_mac[1][2:],
+                hex_mac[2][:2], hex_mac[2][2:]
+            ])
 
-# Función principal
-def main(interface="e1-2", output_file="output.json"):
-    command = ["sudo", "tcpdump", "-i", interface, "-n", "icmp6"]
-    print(f"Ejecutando tcpdump en interfaz {interface}. Presione Ctrl+C para salir.")
+    if mac and ipv6:
+        key = (mac, ipv6)
+        if key not in seen_entries:
+            seen_entries.add(key)
+            entry = {
+                "mac": mac,
+                "ipv6": ipv6,
+                "interface": INTERFACE,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+            bindings[INTERFACE].append(entry)
+            print(f"[✓] Capturado: {entry}")
 
-    try:
-        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    current_block = []
 
-        results = {}
-        seen_entries = set()  # Para evitar duplicados
+def signal_handler(sig, frame):
+    print("\n[+] Captura detenida. Escribiendo archivo JSON...")
+    flush_block()  # Procesar el último bloque pendiente
+    with open("icmpv6_bindings.json", "w") as f:
+        json.dump(bindings, f, indent=2)
+    print("[✓] Archivo generado: icmpv6_bindings.json")
+    exit(0)
 
-        for line in process.stdout:
-            line = line.strip()
-            print(line)  # Opcional: mostrar salida en tiempo real
+signal.signal(signal.SIGINT, signal_handler)
 
-            if "ICMP6," in line and ("neighbor solicitation" in line or "router solicitation" in line or "router advertisement" in line):
-                ipv6, mac = extract_icmp6_info(line)
+print(f"[*] Capturando ICMPv6 en la interfaz {INTERFACE}... Presiona Ctrl+C para detener.")
 
-                if ipv6 and mac:
-                    entry_tuple = (ipv6, mac)
+proc = subprocess.Popen(
+    ["tcpdump", "-l", "-i", INTERFACE, "-v", "-n", "icmp6"],
+    stdout=subprocess.PIPE,
+    stderr=subprocess.STDOUT,
+    text=True,
+    bufsize=1
+)
 
-                    if entry_tuple not in seen_entries:
-                        seen_entries.add(entry_tuple)
-
-                        timestamp = datetime.utcnow().isoformat() + "Z"
-                        entry = {
-                            "mac": mac,
-                            "ipv6": ipv6,
-                            "interface": interface,
-                            "timestamp": timestamp
-                        }
-
-                        if interface not in results:
-                            results[interface] = []
-                        results[interface].append(entry)
-                        print(f"Añadido: {entry}")
-
-        # Guardar resultados en JSON
-        with open(output_file, 'w') as f:
-            json.dump(results, f, indent=2)
-        print(f"Datos guardados en {output_file}")
-
-    except KeyboardInterrupt:
-        print("\nCaptura detenida por usuario.")
-        # Guardar datos antes de salir
-        with open(output_file, 'w') as f:
-            json.dump(results, f, indent=2)
-        print(f"Datos parciales guardados en {output_file}")
-        sys.exit(0)
-
-if __name__ == "__main__":
-    main(interface="e1-2")
+for line in proc.stdout:
+    line = line.strip()
+    if line.startswith("IP6"):
+        flush_block()
+    current_block.append(line)
