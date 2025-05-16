@@ -14,38 +14,37 @@ def flush_block():
     global current_block
     mac = None
     ipv6_src = None
-    ipv6_target = None
+    is_valid_packet = False
 
     for line in current_block:
-        # Extraer dirección origen del paquete
-        match_ipv6_src = re.search(r'IP6.*?([0-9a-f:]+) >', line)
+        # Solo procesar NS o RS, evitar RAs
+        if "neighbor solicitation" in line or "router solicitation" in line:
+            is_valid_packet = True
+
+        # Dirección IPv6 origen (no "::")
+        match_ipv6_src = re.search(r'IP6\s+([0-9a-f:]+)\s+>\s+', line)
         if match_ipv6_src:
-            ipv6_src = match_ipv6_src.group(1)
+            src_candidate = match_ipv6_src.group(1)
+            if src_candidate != "::":
+                ipv6_src = src_candidate
 
-        # Extraer dirección solicitada en NS
-        match_ipv6_target = re.search(r'who has ([0-9a-f:]+)', line)
-        if match_ipv6_target:
-            ipv6_target = match_ipv6_target.group(1)
-
-        # Extraer MAC del campo "source link-address option"
-        match_mac = re.search(r'source link-address option.*?: ([0-9a-f:]{17})', line)
+        # MAC real del emisor
+        match_mac = re.search(r'source link-address option.*?:\s+([0-9a-f:]{17})', line)
         if match_mac:
             mac = match_mac.group(1)
 
-    if mac:
-        for ip in [ipv6_src, ipv6_target]:
-            if ip:
-                key = (mac, ip)
-                if key not in seen_entries:
-                    seen_entries.add(key)
-                    entry = {
-                        "mac": mac,
-                        "ipv6": ip,
-                        "interface": INTERFACE,
-                        "timestamp": datetime.now(timezone.utc).isoformat()
-                    }
-                    bindings[INTERFACE].append(entry)
-                    print(f"[✓] Capturado: {entry}")
+    if is_valid_packet and mac and ipv6_src:
+        key = (mac, ipv6_src)
+        if key not in seen_entries:
+            seen_entries.add(key)
+            entry = {
+                "mac": mac,
+                "ipv6": ipv6_src,
+                "interface": INTERFACE,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+            bindings[INTERFACE].append(entry)
+            print(f"[✓] Capturado: {entry}")
 
     current_block = []
 
@@ -61,8 +60,11 @@ signal.signal(signal.SIGINT, signal_handler)
 
 print(f"[*] Capturando ICMPv6 en la interfaz {INTERFACE}... Presiona Ctrl+C para detener.")
 
+# Solo paquetes tipo 133 (RS), 135 (NS)
+tcpdump_filter = "icmp6 and (icmp6[0] == 133 or icmp6[0] == 135)"
+
 proc = subprocess.Popen(
-    ["tcpdump", "-l", "-i", INTERFACE, "-v", "-n", "icmp6"],
+    ["tcpdump", "-l", "-i", INTERFACE, "-v", "-n", tcpdump_filter],
     stdout=subprocess.PIPE,
     stderr=subprocess.STDOUT,
     text=True,
