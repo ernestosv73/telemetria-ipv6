@@ -26,15 +26,7 @@ topology:
       startup-config: router/config.json
       exec:
         - "sysctl -w net.ipv6.conf.e1-1.accept_ra=0"
-        
-    gnmic:
-      kind: linux
-      mgmt-ipv4: 172.80.80.41
-      image: ghcr.io/openconfig/gnmic:latest
-      binds:
-        - configs/gnmic/gnmic-config.yml:/gnmic-config.yml:ro
-      cmd: --config /gnmic-config.yml --log subscribe
-      
+                        
     #srvweb:
        #kind: linux
        #image: docker.io/esanchezv/srvhttps:latest
@@ -103,6 +95,10 @@ topology:
     PC3:
       kind: linux
       image: ghcr.io/hellt/network-multitool
+      binds:
+        - configs/gnmic/gnmic-config.yml:/gnmic-config.yml:ro
+      #cmd: --config /gnmic-config.yml --log subscribe
+
       #exec:
       #- ip -6 route del default dev eth0
       
