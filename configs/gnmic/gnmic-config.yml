@@ -1,26 +1,3 @@
-# gnmic-config.yml - Configuración mínima para conectar a Nokia SR Linux
-
-username: admin
-password: NokiaSrl1!
-timeout: 10s
-
-# Definición del target (dispositivo SR Linux)
-targets:
-  srlswitch:
-    address: srlswitch:57400
-    port: 57400
-    skip-verify: true
-    insecure: false
-    username: admin
-    password: NokiaSrl1!
-    subscriptions:
-      - bridge-table-mac
-
-# Definición de suscripciones
-subscriptions:
-  bridge-table-mac:
-    mode: stream
-    stream-mode: sample
-    sample-interval: 5s
-    paths:
-      - /network-instance[name=*]/bridge-table/mac-table/mac[address=*]
+gnmic -a srlswitch:57400 --skip-verify \
+      -u admin -p "NokiaSrl1!" \
+      -e json_ietf \
