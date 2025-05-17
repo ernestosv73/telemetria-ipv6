@@ -23,4 +23,4 @@ subscriptions:
     stream-mode: sample
     sample-interval: 5s
     paths:
-      - /network-instance[name=*]/bridge-table/mac-table/entry[address=*]
+      - /network-instance[name=*]/bridge-table/mac-table/mac[address=*]
