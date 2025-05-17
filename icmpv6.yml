@@ -30,7 +30,7 @@ topology:
     gnmic:
       kind: linux
       mgmt-ipv4: 172.80.80.41
-      image: ghcr.io/openconfig/gnmic:0.39.1
+      image: ghcr.io/openconfig/gnmic:latest
       
     #srvweb:
        #kind: linux
