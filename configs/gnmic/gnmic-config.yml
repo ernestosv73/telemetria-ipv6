@@ -8,7 +8,9 @@ timeout: 10s
 targets:
   srlswitch:
     address: srlswitch:57400
-    insecure: true
+    port: 57400
+    skip-verify: true
+    insecure: false
     username: admin
     password: NokiaSrl1!
     subscriptions:
