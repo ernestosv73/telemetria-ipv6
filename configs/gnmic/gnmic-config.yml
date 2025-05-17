@@ -1,3 +1,17 @@
-gnmic -a srlswitch:57400 --skip-verify \
-      -u admin -p "NokiaSrl1!" \
-      -e json_ietf \
+targets:
+  srlswitch:
+    address: srlswitch:57400
+    username: admin
+    password: NokiaSrl1!
+    skip-verify: true
+    encoding: json_ietf
+    subscriptions:
+      - bridge-table-mac
+
+subscriptions:
+  bridge-table-mac:
+    mode: stream
+    stream-mode: sample
+    sample-interval: 5s
+    paths:
+      - /network-instance[name=*]/bridge-table/mac-table/mac[address=*]
