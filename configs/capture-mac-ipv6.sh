@@ -8,31 +8,32 @@ mkdir -p $OUTPUT_DIR
 TMP_NDP_JSON="/tmp/ipv6_ndp.json"
 TMP_MAC_JSON="/tmp/mac_table.json"
 NDP_CACHE="/tmp/ndp_cache.tmp"
-
-# Archivo de salida final
 OUTPUT_JSON="$OUTPUT_DIR/mac_ipv6_bindings.json"
+
+# Inicializar archivo JSON final
 echo "[" > "$OUTPUT_JSON"
 
-# Función para limpiar JSON al finalizar
+# Función para limpiar al finalizar
 cleanup_json() {
     sed -i '$ s/,$//' "$OUTPUT_JSON" 2>/dev/null || true
     echo "]" >> "$OUTPUT_JSON"
 }
 trap cleanup_json EXIT
 
-# Función para capturar tráfico ICMPv6
+# Función para capturar tráfico ICMPv6 (NS/NA)
 start_ndp_capture() {
     echo "[*] Iniciando captura de tráfico ICMPv6..."
     tcpdump -i eth1 -U -w - 'icmp6 && ip6[40] == 135 or ip6[40] == 136' | tshark -l -r - -T json > "$TMP_NDP_JSON" &
 }
 
-# Función para procesar tráfico NS/NA y guardar caché
+# Función para procesar NS/NA y guardar caché temporal
 process_ndp() {
     echo "[*] Procesando tráfico NDP..."
 
     while read line; do
-        mac=$(echo "$line" | jq -r '..|.["eth.addr"]? // empty' 2>/dev/null)
-        ip6=$(echo "$line" | jq -r '..|.["icmpv6.nd.ns.target_address"]? // empty' 2>/dev/null)
+        # Extraer MAC e IPv6 objetivo
+        mac=$(echo "$line" | jq -r '.layers.eth."eth.addr"' 2>/dev/null)
+        ip6=$(echo "$line" | jq -r '.layers.icmpv6."icmpv6.nd.ns.target_address"' 2>/dev/null)
 
         if [ -n "$mac" ] && [ -n "$ip6" ]; then
             if echo "$ip6" | grep -q "^fe80"; then
@@ -45,7 +46,7 @@ process_ndp() {
     done < <(jq -c '.[]' "$TMP_NDP_JSON" 2>/dev/null)
 }
 
-# Función para obtener tabla MAC via gNMI
+# Función para obtener tabla MAC desde gNMI
 get_mac_table() {
     echo "[*] Obteniendo tabla MAC desde gNMI..."
 
@@ -58,20 +59,22 @@ get_mac_table() {
       sed 's/ethernet-/e/; s/\//:/g' > "$TMP_MAC_JSON"
 }
 
-# Función para correlacionar MACs aprendidas con IPv6
+# Función para correlacionar MACs con IPv6
 correlate_bindings() {
     echo "[*] Correlacionando MACs aprendidas con IPv6..."
 
+    # Asegurarse de tener datos de NDP
     while [ ! -f "$NDP_CACHE" ] || [ ! -s "$NDP_CACHE" ]; do
         echo "[*] Esperando tráfico NDP para correlacionar..."
         sleep 2
     done
 
+    # Procesar cada entrada de MAC desde gNMI
     cat "$TMP_MAC_JSON" | while IFS= read -r entry; do
         mac=$(echo "$entry" | jq -r '.address')
         intf=$(echo "$entry" | jq -r '.destination')
 
-        # Buscar en caché
+        # Buscar IPv6 link-local y global en caché
         ip6_link=$(grep "\"mac\": \"$mac\"" "$NDP_CACHE" | grep ipv6_link_local | tail -n1 | jq -r .ipv6_link_local)
         ip6_global=$(grep "\"mac\": \"$mac\"" "$NDP_CACHE" | grep ipv6_global | tail -n1 | jq -r .ipv6_global)
 
@@ -102,7 +105,7 @@ process_ndp &
 # Obtener tabla MAC
 get_mac_table
 
-# Esperar a tener datos de NDP
+# Esperar un poco más a que haya datos de NDP
 sleep 10
 
 # Correlacionar MACs con IPv6
