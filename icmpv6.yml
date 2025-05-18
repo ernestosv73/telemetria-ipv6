@@ -99,10 +99,7 @@ topology:
         #- configs/gnmic/gnmic-config.yml:/gnmic-config.yml:ro
       #cmd: --config /gnmic-config.yml --log subscribe
 
-      exec:
-       - bash -c "$(curl -sL https://get-gnmic.openconfig.net)"
-      
-           
+                 
     
   links:
     - endpoints: ["srlrouter:e1-1", "srlswitch:e1-1"]
