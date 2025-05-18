@@ -94,9 +94,9 @@ topology:
 
     PC3:
       kind: linux
-      image: ghcr.io/hellt/network-multitool
-      #binds:
-        #- configs/gnmic/gnmic-config.yml:/gnmic-config.yml:ro
+      image: esanchezv/hellt-gnmic:latest
+      binds:
+        - configs/gnmic/gnmic-config.yml:/gnmic-config.yml:ro
       #cmd: --config /gnmic-config.yml --log subscribe
 
                  
