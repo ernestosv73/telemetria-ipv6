@@ -10,11 +10,11 @@ topology:
       kind: nokia_srlinux
       image: ghcr.io/nokia/srlinux:24.10.1
       type: ixrd3
-      binds:
-        - configs/icmpv6_captura.py:/root/icmpv6_captura.py
+      #binds:
+        #- configs/icmpv6_captura.py:/root/icmpv6_captura.py
       startup-config: switch/config.json
-      exec:
-       - chmod +x /root/icmpv6_captura.py
+      #exec:
+       #- chmod +x /root/icmpv6_captura.py
        #- bash /root/nd_snooping_multi.sh
       
      
@@ -97,6 +97,7 @@ topology:
       image: esanchezv/hellt-gnmic:latest
       binds:
         - configs/gnmic/gnmic-config.yml:/gnmic-config.yml:ro
+        - configs/capture-mac-ipv6.sh:/root/capture-mac-ipv6.sh
       #cmd: --config /gnmic-config.yml --log subscribe
 
                  
