@@ -5,9 +5,7 @@ targets:
     password: NokiaSrl1!
     skip-verify: true
     encoding: json_ietf
-    subscriptions:
-      - bridge-table-mac
-
+   
 subscriptions:
   bridge-table-mac:
     mode: stream
