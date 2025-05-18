@@ -88,7 +88,7 @@ topology:
               
     PC2:
       kind: linux
-      image: docker.io/esanchezv/kaliipv6:latest
+      image: ghcr.io/hellt/network-multitool:latest
       #exec:
       #- ip -6 route del default dev eth0  
 
