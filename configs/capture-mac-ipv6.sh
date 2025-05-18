@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Interfaces y archivos
-INTERFACE="eth0"
+INTERFACE="eth1"
 PCAP_FILE="/tmp/ndp.pcap"
 JSON_FILE="/tmp/ipv6_ndp.json"
 
