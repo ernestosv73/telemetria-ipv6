@@ -22,7 +22,7 @@ trap cleanup_json EXIT
 # Función para capturar tráfico ICMPv6 (NS/NA)
 start_ndp_capture() {
     echo "[*] Iniciando captura de tráfico ICMPv6..."
-    tcpdump -i eth0 -U -w - 'icmp6 && ip6[40] == 135 or ip6[40] == 136' | tshark -l -r - -T json > /tmp/ipv6_ndp.json &
+    tcpdump -i eth1 -U -w - 'icmp6 && ip6[40] == 135 or ip6[40] == 136' | tshark -l -r - -T json > /tmp/ipv6_ndp.json &
 }
 
 # Función para procesar NS/NA desde tshark
