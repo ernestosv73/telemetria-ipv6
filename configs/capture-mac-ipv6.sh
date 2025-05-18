@@ -47,7 +47,7 @@ get_mac_table() {
 
     gnmic -a srlswitch:57400 --skip-verify \
           -u admin -p "NokiaSrl1!" \
-          --format json_ietf \
+          -e json_ietf \
           get --path "/network-instance[name=lanswitch]/bridge-table/mac-table/mac" | \
       jq -c '.[0].updates[0].values."srl_nokia-network-instance:network-instance/bridge-table/srl_nokia-bridge-table-mac-table:mac-table".mac[]' 2>/dev/null | \
       grep -v "reserved" | \
