@@ -2,75 +2,83 @@
 
 # Parámetros
 INTERFACE="eth1"
-DURATION=20                   # segundos de captura
-PCAP_FILE="/tmp/ndp_capture.pcap"
-NDP_JSON="/tmp/ipv6_ndp.json"
+NDP_JSON_TMP="/tmp/ipv6_ndp.tmp.json"
 MAC_TABLE_JSON="/tmp/mac_table.json"
 OUTPUT_JSON="/data/mac_ipv6_bindings.json"
+
 # Directorio de salida
-OUTPUT_DIR="/data"
-mkdir -p $OUTPUT_DIR
-echo "[*] Capturando tráfico ICMPv6 ($DURATION s) en $INTERFACE..."
-tcpdump -i "$INTERFACE" -w "$PCAP_FILE" -G "$DURATION" -W 1 \
-  'icmp6 && (ip6[40] == 135 or ip6[40] == 136)' >/dev/null 2>&1
-
-echo "[*] Convirtiendo a JSON con tshark..."
-tshark -r "$PCAP_FILE" -T json > "$NDP_JSON"
-
-# Validar si el JSON quedó mal cerrado
-if ! jq empty "$NDP_JSON" >/dev/null 2>&1; then
-  echo "[!] JSON incompleto. Corrigiendo..."
-  echo "]" >> "$NDP_JSON"
-fi
-
-echo "[*] Obteniendo tabla MAC desde gNMI..."
-gnmic -a srlswitch:57400 --skip-verify \
-  -u admin -p "NokiaSrl1!" -e json_ietf \
-  get --path "/network-instance[name=lanswitch]/bridge-table/mac-table/mac" | \
-  jq -c '.[0].updates[0].values."srl_nokia-network-instance:network-instance/bridge-table/srl_nokia-bridge-table-mac-table:mac-table".mac[]' \
-  > "$MAC_TABLE_JSON"
-
-echo "[*] Correlacionando MAC ↔ IPv6 ↔ interfaz..."
-
+mkdir -p /data
 echo "[" > "$OUTPUT_JSON"
 
-cat "$MAC_TABLE_JSON" | while read -r mac_entry; do
-  mac=$(echo "$mac_entry" | jq -r '.address' | tr '[:upper:]' '[:lower:]')
-  intf=$(echo "$mac_entry" | jq -r '.destination')
+# Función para limpiar JSON al finalizar
+cleanup_json() {
+    sed -i '$ s/,$//' "$OUTPUT_JSON" 2>/dev/null || true
+    echo "]" >> "$OUTPUT_JSON"
+}
+trap cleanup_json EXIT
 
-  ip6_link=$(jq -r --arg mac "$mac" '
-    .[]["_source"].layers as $l 
-    | select($l.eth["eth.src"] != null and ($l.eth["eth.src"] | ascii_downcase) == $mac)
-    | select($l.icmpv6["icmpv6.nd.ns.target_address"] | test("^fe80"))
-    | $l.icmpv6["icmpv6.nd.ns.target_address"]
-    ' "$NDP_JSON" | head -n1)
+# Función para capturar tráfico NDP en tiempo real
+start_ndp_capture() {
+    echo "[*] Iniciando captura de tráfico ICMPv6 en $INTERFACE..."
+    tshark -i "$INTERFACE" -T json 'icmp6 && ip6[40] == 135 or ip6[40] == 136' | \
+        grep -v '^$$' > "$NDP_JSON_TMP" &
+}
 
-  ip6_global=$(jq -r --arg mac "$mac" '
-    .[]["_source"].layers as $l 
-    | select($l.eth["eth.src"] != null and ($l.eth["eth.src"] | ascii_downcase) == $mac)
-    | select($l.icmpv6["icmpv6.nd.ns.target_address"] | test("^fe80") | not)
-    | $l.icmpv6["icmpv6.nd.ns.target_address"]
-    ' "$NDP_JSON" | head -n1)
+# Función para obtener tabla MAC desde gNMI
+get_mac_table() {
+    echo "[*] Obteniendo tabla MAC desde gNMI..."
+    gnmic -a srlswitch:57400 --skip-verify \
+          -u admin -p "NokiaSrl1!" -e json_ietf \
+          get --path "/network-instance[name=lanswitch]/bridge-table/mac-table/mac" | \
+      jq -c '.[0].updates[0].values."srl_nokia-network-instance:network-instance/bridge-table/srl_nokia-bridge-table-mac-table:mac-table".mac[]' \
+      > "$MAC_TABLE_JSON"
+}
 
-  timestamp=$(jq -r --arg mac "$mac" '
-    .[]["_source"].layers as $l 
-    | select($l.eth["eth.src"] != null and ($l.eth["eth.src"] | ascii_downcase) == $mac)
-    | $l.frame["frame.time"]
-    ' "$NDP_JSON" | head -n1)
+# Función para procesar y correlacionar datos
+correlate_bindings() {
+    echo "[*] Correlacionando MAC ↔ IPv6 ↔ interfaz..."
 
-  if [ -n "$ip6_link" ] || [ -n "$ip6_global" ]; then
-    echo "  {" >> "$OUTPUT_JSON"
-    echo "    \"mac\": \"$mac\"," >> "$OUTPUT_JSON"
-    echo "    \"interface\": \"$intf\"," >> "$OUTPUT_JSON"
-    [ -n "$ip6_link" ] && echo "    \"ipv6_link_local\": \"$ip6_link\"," >> "$OUTPUT_JSON"
-    [ -n "$ip6_global" ] && echo "    \"ipv6_global\": \"$ip6_global\"," >> "$OUTPUT_JSON"
-    echo "    \"timestamp\": \"${timestamp:-unknown}\"" >> "$OUTPUT_JSON"
-    echo "  }," >> "$OUTPUT_JSON"
-  fi
-done
+    # Cargar lista de MACs conocidas
+    known_macs=$(mktemp)
+    cat "$MAC_TABLE_JSON" | jq -r '.address' | tr '[:upper:]' '[:lower:]' > "$known_macs"
 
-# Finalizar JSON
-sed -i '$ s/},/}/' "$OUTPUT_JSON"
-echo "]" >> "$OUTPUT_JSON"
+    while true; do
+        if [ ! -s "$NDP_JSON_TMP" ]; then
+            sleep 2
+            continue
+        fi
 
-echo "✅ Archivo generado: $OUTPUT_JSON"
+        # Procesar cada línea nueva del archivo temporal
+        tail -n +$(cat "$NDP_JSON_TMP" | wc -l) "$NDP_JSON_TMP" | while read -r line; do
+            mac=$(echo "$line" | jq -r '..|.eth.src // empty' | tr '[:upper:]' '[:lower:]')
+            ip6=$(echo "$line" | jq -r '..|.nd.target_address // empty')
+
+            if [ -n "$mac" ] && [ -n "$ip6" ]; then
+                intf=$(grep "\"$mac\"" "$MAC_TABLE_JSON" | jq -r '.destination' | head -n1)
+
+                if [ -n "$intf" ]; then
+                    type="global"
+                    echo "$ip6" | grep -q "^fe80" && type="link_local"
+
+                    entry="{\"mac\": \"$mac\", \"interface\": \"$intf\", \"ipv6_$type\": \"$ip6\", \"timestamp\": \"$(date -u +"%Y-%m-%dT%H:%M:%SZ")}"
+                    echo "$entry," >> "$OUTPUT_JSON"
+                    echo "$entry"
+                fi
+            fi
+        done
+
+        sleep 5
+    done
+}
+
+# Limpiar archivos anteriores
+rm -f "$NDP_JSON_TMP" "$OUTPUT_JSON"
+touch "$NDP_JSON_TMP"
+echo "[" > "$OUTPUT_JSON"
+
+# Iniciar componentes
+start_ndp_capture
+sleep 2
+
+# Lanzar correlación en bucle
+correlate_bindings
