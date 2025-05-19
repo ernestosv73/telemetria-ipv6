@@ -7,8 +7,9 @@ MAC_TABLE_JSON="/tmp/mac_table.json"
 OUTPUT_JSON="/data/mac_ipv6_bindings.json"
 KNOWN_MACS_FILE="/tmp/known_macs.txt"
 
-# Directorio de salida
-mkdir -p /data
+# Inicializar directorios
+mkdir -p /data /tmp
+truncate -s 0 "$NDP_JSON"
 echo "[" > "$OUTPUT_JSON"
 
 # Función para limpiar al finalizar
@@ -25,7 +26,7 @@ start_ndp_capture() {
         tshark -l -r - -T json > "$NDP_JSON" &
 }
 
-# Función para obtener tabla MAC desde el switch Nokia SR Linux
+# Función para obtener tabla MAC desde gNMI
 get_mac_table() {
     echo "[*] Obteniendo tabla MAC desde gNMI..."
 
@@ -40,55 +41,44 @@ get_mac_table() {
 correlate_bindings() {
     echo "[*] Correlacionando datos..."
 
+    # Cargar MACs conocidas del switch
     while true; do
-        # Solo procesar si hay archivo JSON válido
-        if [ -f "$NDP_JSON" ] && [ -s "$NDP_JSON" ]; then
-            # Reinicializar caché de salida
-            truncate -s 0 "$OUTPUT_JSON"
-            echo "[" > "$OUTPUT_JSON"
-
-            cat "$MAC_TABLE_JSON" | while read -r mac_entry; do
-                mac=$(echo "$mac_entry" | jq -r '.address' | tr '[:upper:]' '[:lower:]')
-                intf=$(echo "$mac_entry" | jq -r '.destination')
-
-                ip6_link=$(jq -r --arg mac "$mac" '
-                    .[]["_source"].layers as $l 
-                    | select($l.eth["eth.src"] != null and ($l.eth["eth.src"] | ascii_downcase) == $mac)
-                    | select($l.icmpv6["icmpv6.nd.ns.target_address"] | test("^fe80"))
-                    | $l.icmpv6["icmpv6.nd.ns.target_address"]
-                ' "$NDP_JSON" | head -n1)
-
-                ip6_global=$(jq -r --arg mac "$mac" '
-                    .[]["_source"].layers as $l 
-                    | select($l.eth["eth.src"] != null and ($l.eth["eth.src"] | ascii_downcase) == $mac)
-                    | select($l.icmpv6["icmpv6.nd.ns.target_address"] | test("^fe80") | not)
-                    | $l.icmpv6["icmpv6.nd.ns.target_address"]
-                ' "$NDP_JSON" | head -n1)
-
-                timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-
-                if [ -n "$ip6_link" ] || [ -n "$ip6_global" ]; then
-                    entry="{\"mac\": \"$mac\", \"interface\": \"$intf\""
-                    [ -n "$ip6_link" ] && entry+=", \"ipv6_link_local\": \"$ip6_link\""
-                    [ -n "$ip6_global" ] && entry+=", \"ipv6_global\": \"$ip6_global\""
-                    entry+=", \"timestamp\": \"$timestamp\"}"
-                    echo "$entry," >> "$OUTPUT_JSON"
-                fi
-            done
-
-            # Limpiar archivo JSON
-            sed -i '$ s/,$//' "$OUTPUT_JSON"
-        else
-            echo "[!] Aún no hay tráfico NDP para procesar."
+        if [ ! -f "$MAC_TABLE_JSON" ] || [ ! -s "$MAC_TABLE_JSON" ]; then
+            echo "[!] Tabla MAC vacía o no disponible. Reintentando..."
+            get_mac_table
+            sleep 5
+            continue
         fi
 
-        sleep 10
+        # Procesar solo nuevas líneas del archivo NDP
+        tail -n +$(( $(wc -l < "$NDP_JSON") - 1 )) "$NDP_JSON" 2>/dev/null | \
+        while IFS= read -r line; do
+            if echo "$line" | jq empty >/dev/null 2>&1; then
+                mac=$(echo "$line" | jq -r '..|.eth.src // empty' | tr '[:upper:]' '[:lower:]')
+                ip6=$(echo "$line" | jq -r '..|.nd.target_address // empty')
+
+                if [ -n "$mac" ] && [ -n "$ip6" ]; then
+                    intf=$(grep "\"address\": \"$mac\"" "$MAC_TABLE_JSON" | jq -r '.destination' | head -n1)
+
+                    type="global"
+                    echo "$ip6" | grep -q "^fe80" && type="link_local"
+
+                    timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+                    entry="{\"mac\": \"$mac\", \"interface\": \"$intf\", \"ipv6_$type\": \"$ip6\", \"timestamp\": \"$timestamp\"}"
+                    echo "$entry" | jq empty >/dev/null 2>&1 && echo "$entry," >> "$OUTPUT_JSON"
+                fi
+            fi
+        done
+
+        sleep 5
     done
 }
 
 # Limpiar archivos previos
-rm -f "$NDP_JSON" "$MAC_TABLE_JSON" "$OUTPUT_JSON"
-touch "$NDP_JSON" "$MAC_TABLE_JSON"
+rm -f "$NDP_JSON" "$OUTPUT_JSON"
+touch "$NDP_JSON"
+echo "[" > "$OUTPUT_JSON"
 
 # Iniciar componentes
 start_ndp_capture
