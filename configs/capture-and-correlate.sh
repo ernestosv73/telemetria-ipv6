@@ -7,7 +7,9 @@ PCAP_FILE="/tmp/ndp_capture.pcap"
 NDP_JSON="/tmp/ipv6_ndp.json"
 MAC_TABLE_JSON="/tmp/mac_table.json"
 OUTPUT_JSON="/data/mac_ipv6_bindings.json"
-
+# Directorio de salida
+OUTPUT_DIR="/data"
+mkdir -p $OUTPUT_DIR
 echo "[*] Capturando tráfico ICMPv6 ($DURATION s) en $INTERFACE..."
 tcpdump -i "$INTERFACE" -w "$PCAP_FILE" -G "$DURATION" -W 1 \
   'icmp6 && (ip6[40] == 135 or ip6[40] == 136)' >/dev/null 2>&1
