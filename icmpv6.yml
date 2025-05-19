@@ -49,7 +49,7 @@ topology:
       mgmt-ipv4: 172.20.20.7
       image: docker.elastic.co/kibana/kibana:7.17.7
       binds:
-        - ./elk/kibana/kibana.yml:/usr/share/kibana/config/kibana.yml
+        - ./configs/kibana.yml:/usr/share/kibana/config/kibana.yml
       
       ports:
         - 5601:5601/tcp
