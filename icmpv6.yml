@@ -67,10 +67,7 @@ topology:
         #- ip -6 addr add 2001:db8:20::10/64 dev eth1
         #- ip -6 route add default via fe80::18f5:5ff:feff:1 dev eth1  
 
-    
-      
-  
-        
+            
     PC1:
       kind: linux
       image: docker.io/esanchezv/kaliipv6:latest
@@ -94,19 +91,13 @@ topology:
                  
     
   links:
-    - endpoints: ["srlrouter:e1-1", "srlswitch:e1-1"]
-    #- endpoints: ["srlrouter:e1-2", "srvweb:eth1"]
+    - endpoints: ["srlrouter:e1-1", "srlswitch:e1-1"]    
     - endpoints: ["PC1:eth1", "srlswitch:e1-2"]
       mtu: 1500
     - endpoints: ["PC2:eth1", "srlswitch:e1-3"]
       mtu: 1500
     - endpoints: ["PC3:eth1", "srlswitch:e1-4"]
       mtu: 1500
-    #- endpoints: ["suricata:eth1", "srlswitch:e1-5"]
-      #mtu: 1500
-    #- endpoints: ["ntopng:eth1", "srlswitch:e1-6"]
-      #mtu: 1500
-    #- endpoints: ["ntopng-redis:eth1", "srlswitch:e1-7"]
-      #mtu: 1500      
+    
     
      
