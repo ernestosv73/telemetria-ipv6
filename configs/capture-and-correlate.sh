@@ -2,14 +2,21 @@
 
 # Parámetros
 INTERFACE="eth1"
-DURATION=20                   # segundos de captura
+DURATION=30
 PCAP_FILE="/tmp/ndp_capture.pcap"
 NDP_JSON="/tmp/ipv6_ndp.json"
 MAC_TABLE_JSON="/tmp/mac_table.json"
-OUTPUT_JSON="/data/mac_ipv6_bindings.json"
-# Directorio de salida
 OUTPUT_DIR="/data"
-mkdir -p $OUTPUT_DIR
+OUTPUT_JSON="$OUTPUT_DIR/mac_ipv6_bindings.json"
+
+# IP y puerto del nodo Filebeat
+FILEBEAT_IP="172.20.20.10"
+FILEBEAT_PORT=9999
+RSYSLOG_TAG="mac_ipv6"
+
+# Preparar directorio
+mkdir -p "$OUTPUT_DIR"
+
 echo "[*] Capturando tráfico ICMPv6 ($DURATION s) en $INTERFACE..."
 tcpdump -i "$INTERFACE" -w "$PCAP_FILE" -G "$DURATION" -W 1 \
   'icmp6 && (ip6[40] == 135 or ip6[40] == 136)' >/dev/null 2>&1
@@ -31,7 +38,6 @@ gnmic -a srlswitch:57400 --skip-verify \
   > "$MAC_TABLE_JSON"
 
 echo "[*] Correlacionando MAC ↔ IPv6 ↔ interfaz..."
-
 echo "[" > "$OUTPUT_JSON"
 
 cat "$MAC_TABLE_JSON" | while read -r mac_entry; do
@@ -59,13 +65,16 @@ cat "$MAC_TABLE_JSON" | while read -r mac_entry; do
     ' "$NDP_JSON" | head -n1)
 
   if [ -n "$ip6_link" ] || [ -n "$ip6_global" ]; then
-    echo "  {" >> "$OUTPUT_JSON"
-    echo "    \"mac\": \"$mac\"," >> "$OUTPUT_JSON"
-    echo "    \"interface\": \"$intf\"," >> "$OUTPUT_JSON"
-    [ -n "$ip6_link" ] && echo "    \"ipv6_link_local\": \"$ip6_link\"," >> "$OUTPUT_JSON"
-    [ -n "$ip6_global" ] && echo "    \"ipv6_global\": \"$ip6_global\"," >> "$OUTPUT_JSON"
-    echo "    \"timestamp\": \"${timestamp:-unknown}\"" >> "$OUTPUT_JSON"
-    echo "  }," >> "$OUTPUT_JSON"
+    json_line="{\"mac\": \"$mac\", \"interface\": \"$intf\","
+    [ -n "$ip6_link" ] && json_line="$json_line \"ipv6_link_local\": \"$ip6_link\","
+    [ -n "$ip6_global" ] && json_line="$json_line \"ipv6_global\": \"$ip6_global\","
+    json_line="$json_line \"timestamp\": \"${timestamp:-unknown}\"}"
+
+    # Escribir en el JSON de salida
+    echo "  $json_line," >> "$OUTPUT_JSON"
+
+    # Enviar al nodo Filebeat vía logger
+    logger -p local0.info -n "$FILEBEAT_IP" -P "$FILEBEAT_PORT" -t "$RSYSLOG_TAG" "$json_line"
   fi
 done
 
