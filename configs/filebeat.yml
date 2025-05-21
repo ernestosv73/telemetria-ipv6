@@ -14,8 +14,6 @@
 
 filebeat.inputs:
 
-filebeat.inputs:
-
 # Entrada para syslog TCP desde logger del nodo colector
 - type: syslog
   protocol.tcp:
