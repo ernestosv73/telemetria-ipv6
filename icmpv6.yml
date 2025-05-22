@@ -61,11 +61,11 @@ topology:
         #binds:
         #- configs/filebeat.yml:/etc/filebeat/filebeat.yml
        #- configs/rsyslog.conf:/etc/rsyslog.conf
-       #exec:
+        exec:
         #- ip -6 route del default dev eth0
-        #- "sysctl -w net.ipv6.conf.eth1.accept_ra=0"
-        #- ip -6 addr add 2001:db8:20::10/64 dev eth1
-        #- ip -6 route add default via fe80::18f5:5ff:feff:1 dev eth1  
+         - "sysctl -w net.ipv6.conf.eth1.accept_ra=0"
+         - ip -6 addr add 2001:db8:20::10/64 dev eth1
+         - ip -6 route add default via fe80::18f5:5ff:feff:1 dev eth1  
 
             
     PC1:
@@ -89,8 +89,13 @@ topology:
         - configs/send-to-elastic.sh:/root/send-to-elastic.sh
       #cmd: --config /gnmic-config.yml --log subscribe
 
-                 
-    
+    PC4:
+      kind: linux
+      image: docker.io/esanchezv/kaliipv6:latest
+      #exec:
+      #- ip -6 route del default dev eth0    
+
+          
   links:
     - endpoints: ["srlrouter:e1-1", "srlswitch:e1-1"]    
     - endpoints: ["PC1:eth1", "srlswitch:e1-2"]
@@ -99,6 +104,10 @@ topology:
       mtu: 1500
     - endpoints: ["PC3:eth1", "srlswitch:e1-4"]
       mtu: 1500
+    - endpoints: ["PC4:eth1", "srlswitch:e1-5"]
+      mtu: 1500  
+    - endpoints: ["suricata:eth1", "srlswitch:e1-6"]
+  
     
     
      
