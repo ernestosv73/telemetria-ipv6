@@ -86,6 +86,7 @@ topology:
       binds:
         - configs/gnmic/gnmic-config.yml:/gnmic-config.yml:ro
         - configs/capture-and-correlate.sh:/root/capture-and-correlate.sh
+        - configs/send-to-elastic.sh:/root/send-to-elastic.sh
       #cmd: --config /gnmic-config.yml --log subscribe
 
                  
