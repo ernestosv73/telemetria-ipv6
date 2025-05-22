@@ -58,8 +58,8 @@ topology:
         kind: linux
         mgmt-ipv4: 172.20.20.10 
         image: docker.io/esanchezv/suricatafilebeatv1:v2
-        binds:
-        - configs/filebeat.yml:/etc/filebeat/filebeat.yml
+        #binds:
+        #- configs/filebeat.yml:/etc/filebeat/filebeat.yml
        #- configs/rsyslog.conf:/etc/rsyslog.conf
        #exec:
         #- ip -6 route del default dev eth0
