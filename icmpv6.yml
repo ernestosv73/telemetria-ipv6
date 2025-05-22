@@ -57,7 +57,7 @@ topology:
     suricata:
         kind: linux
         mgmt-ipv4: 172.20.20.10 
-        image: docker.io/esanchezv/suricatafilebeatv1:v2
+        image: docker.io/esanchezv/suricatafilebeatv1:v1
         binds:
          - configs/local.rules:/var/lib/suricata/rules/local.rules
         #- configs/filebeat.yml:/etc/filebeat/filebeat.yml
