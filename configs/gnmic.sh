@@ -1,6 +1,4 @@
-apk add openrc 
-sleep 1
-apk add dcron
+apk add busybox-initscripts openrc --no-cache
 sleep 1
 touch /run/openrc/softlevel
 sleep 1
