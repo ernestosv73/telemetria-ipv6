@@ -10,7 +10,7 @@ import requests
 
 # === Parámetros ===
 INTERFACE = "eth1"
-ES_URL = "http://es01:9200"
+ES_URL = "http://172.20.20.9:9200"
 INDEX_NAME = f"mac-ipv6-{datetime.utcnow().strftime('%Y.%m.%d')}"
 OUTPUT_JSON = "/data/mac_ipv6_bindings.json"
 
