@@ -89,7 +89,7 @@ topology:
         - configs/gnmic/gnmic-config.yml:/gnmic-config.yml:ro
         #- configs/capture-and-correlate.sh:/root/capture-and-correlate.sh
         #- configs/send-to-elastic.sh:/root/send-to-elastic.sh
-         - configs/capture-correlate-send.py:/root/capture-correlate-send.py
+        - configs/capture-correlate-send.py:/root/capture-correlate-send.py
       #cmd: --config /gnmic-config.yml --log subscribe
       #exec:
         #- chmod +x /root/gnmic.sh
