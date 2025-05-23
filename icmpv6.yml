@@ -93,6 +93,9 @@ topology:
       exec:
         - chmod +x /root/gnmic.sh
         - bash /root/gnmic.sh
+        - mkdir /etc/periodic/1min
+        - cp /root/capture-and-correlate.sh /etc/periodic/1min/capture-and-correlate
+        - chmod +x /etc/periodic/1min/capture-and-correlate
 
     PC4:
       kind: linux
