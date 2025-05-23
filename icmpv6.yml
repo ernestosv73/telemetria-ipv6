@@ -85,10 +85,14 @@ topology:
       kind: linux
       image: esanchezv/hellt-gnmic:latest
       binds:
+        - configs/gnmic.sh:/root/gnmic.sh
         - configs/gnmic/gnmic-config.yml:/gnmic-config.yml:ro
         - configs/capture-and-correlate.sh:/root/capture-and-correlate.sh
         - configs/send-to-elastic.sh:/root/send-to-elastic.sh
       #cmd: --config /gnmic-config.yml --log subscribe
+      exec:
+        - chmod +x /root/gnmic.sh
+        - bash /root/gnmic.sh
 
     PC4:
       kind: linux
