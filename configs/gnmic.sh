@@ -1,4 +1,4 @@
-apk add busybox-initscripts openrc --no-cache
+apk add --no-cache python3 py3-pip
 sleep 1
-touch /run/openrc/softlevel
+pip install scapy
 sleep 1
