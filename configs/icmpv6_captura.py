@@ -19,18 +19,26 @@ GNMI_USER = "admin"
 GNMI_PASS = "NokiaSrl1!"
 GNMI_PATH = '/network-instance[name=lanswitch]/bridge-table/mac-table/mac'
 
+# === Variables globales ===
+bindings = {}
+mac_table = []  # ← aquí se declara global para usar en process_packet
+mac_lookup_set = set()
+
 # === Preparar directorio de salida ===
 os.makedirs(OUTPUT_DIR, exist_ok=True)
-bindings = {}
 
 # === Procesar paquetes ICMPv6 Neighbor Solicitation ===
 def process_packet(pkt):
     if pkt.haslayer(ICMPv6ND_NS):
         eth_layer = pkt[Ether]
         ns_layer = pkt[ICMPv6ND_NS]
-        mac = eth_layer.src.lower()
+        mac = eth_layer.src.lower().replace("-", ":").strip()
         target_ip = ns_layer.tgt
         timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+
+        # Verificar si la MAC existe en la tabla del SR Linux
+        if mac not in mac_lookup_set:
+            return  # ignorar MACs no conocidas por el switch
 
         is_link_local = target_ip.startswith("fe80::")
 
@@ -113,6 +121,8 @@ if __name__ == "__main__":
     print("[*] Obteniendo tabla MAC desde SR Linux...")
     mac_table = get_mac_table()
     print(f"[+] {len(mac_table)} entradas obtenidas de la tabla MAC")
+
+    mac_lookup_set = {normalize_mac(entry["address"]) for entry in mac_table}
 
     # DEBUG: MACs del SR Linux
     print("\n[DEBUG] MACs en tabla gNMI:")
