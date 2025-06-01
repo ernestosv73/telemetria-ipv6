@@ -2,7 +2,7 @@
 
 # Parámetros
 INTERFACE="eth1"
-DURATION=30                   # segundos de captura
+DURATION=20                   # segundos de captura
 PCAP_FILE="/tmp/ndp_capture.pcap"
 NDP_JSON="/tmp/ipv6_ndp.json"
 MAC_TABLE_JSON="/tmp/mac_table.json"
