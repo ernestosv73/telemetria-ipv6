@@ -7,12 +7,21 @@ PCAP_FILE="/tmp/ndp_capture.pcap"
 NDP_JSON="/tmp/ipv6_ndp.json"
 MAC_TABLE_JSON="/tmp/mac_table.json"
 OUTPUT_JSON="/data/mac_ipv6_bindings.json"
-# Directorio de salida
 OUTPUT_DIR="/data"
-mkdir -p $OUTPUT_DIR
+
+mkdir -p "$OUTPUT_DIR"
+
 echo "[*] Capturando tráfico ICMPv6 ($DURATION s) en $INTERFACE..."
-tcpdump -i "$INTERFACE" -w "$PCAP_FILE" -G "$DURATION" -W 1 \
+
+# Garantizar que tcpdump termine incluso si no recibe paquetes
+timeout "${DURATION}"s tcpdump -i "$INTERFACE" -w "$PCAP_FILE" \
   'icmp6 && (ip6[40] == 135 or ip6[40] == 136)' >/dev/null 2>&1
+
+# Verificar si se creó el archivo y no está vacío
+if [ ! -f "$PCAP_FILE" ] || [ ! -s "$PCAP_FILE" ]; then
+  echo "[!] No se capturó tráfico ICMPv6 o el archivo está vacío."
+  exit 1
+fi
 
 echo "[*] Convirtiendo a JSON con tshark..."
 tshark -r "$PCAP_FILE" -T json > "$NDP_JSON"
@@ -41,7 +50,7 @@ cat "$MAC_TABLE_JSON" | while read -r mac_entry; do
   ip6_link=$(jq -r --arg mac "$mac" '
     .[]["_source"].layers as $l 
     | select($l.eth["eth.src"] != null and ($l.eth["eth.src"] | ascii_downcase) == $mac)
-    | select($l.icmpv6["icmpv6.nd.ns.target_address"] | test("^fe80"))
+    | select($l.icmpv6["icmpv6.nd.ns.target_address"] | startswith("fe80"))
     | $l.icmpv6["icmpv6.nd.ns.target_address"]
     ' "$NDP_JSON" | head -n1)
 
@@ -69,37 +78,8 @@ cat "$MAC_TABLE_JSON" | while read -r mac_entry; do
   fi
 done
 
-# Finalizar JSON
+# Finalizar JSON limpiamente
 sed -i '$ s/},/}/' "$OUTPUT_JSON"
 echo "]" >> "$OUTPUT_JSON"
 
 echo "✅ Archivo generado: $OUTPUT_JSON"
-#!/bin/bash
-
-# Parámetros
-JSON_FILE="/data/mac_ipv6_bindings.json"
-ES_URL="http://172.20.20.9:9200"
-INDEX_NAME="mac-ipv6-$(date +"%Y.%m.%d")"
-BULK_URL="$ES_URL/$INDEX_NAME/_bulk"
-
-echo "[*] Verificando archivo $JSON_FILE..."
-if [ ! -f "$JSON_FILE" ]; then
-    echo "[!] Archivo no encontrado: $JSON_FILE"
-    exit 1
-fi
-
-echo "[*] Enviando datos a Elasticsearch..."
-
-# Preparar datos para envío bulk
-cat "$JSON_FILE" | jq -c '.[]' | while read entry; do
-    echo '{"index":{}}'
-    echo "$entry"
-done > /tmp/es_data.tmp
-
-# Enviar datos a Elasticsearch
-curl -s -XPOST "$BULK_URL" \
-     -H "Content-Type: application/json" \
-     --data-binary @/tmp/es_data.tmp | jq .
-
-echo ""
-echo "[+] Datos enviados al índice '$INDEX_NAME'"
