@@ -10,7 +10,7 @@ import sys
 
 # === Configuración ===
 INTERFACE = "eth1"
-CAPTURE_DURATION = 20
+CAPTURE_DURATION = 30
 OUTPUT_JSON = "/data/mac_ipv6_bindings.json"
 OUTPUT_DIR = "/data"
 
