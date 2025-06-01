@@ -1,108 +1,137 @@
-import subprocess
+#!/usr/bin/env python3
+
+from scapy.all import sniff, Ether, IPv6, ICMPv6ND_NS
+from datetime import datetime
 import json
+import subprocess
+import os
 import signal
-import re
-from collections import defaultdict
-from datetime import datetime, timezone
+import sys
 
-INTERFACE = "e1-2"
-bindings = defaultdict(list)
-seen_entries = set()
-current_block = []
+# === Configuración ===
+INTERFACE = "eth1"
+CAPTURE_DURATION = 20
+OUTPUT_JSON = "/data/mac_ipv6_bindings.json"
+OUTPUT_DIR = "/data"
 
-def add_entry(mac, ipv6):
-    key = (mac, ipv6)
-    if key not in seen_entries:
-        seen_entries.add(key)
-        entry = {
-            "mac": mac,
-            "ipv6": ipv6,
-            "interface": INTERFACE,
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        }
-        bindings[INTERFACE].append(entry)
-        print(f"[✓] Capturado: {entry}")
+GNMI_TARGET = "srlswitch:57400"
+GNMI_USER = "admin"
+GNMI_PASS = "NokiaSrl1!"
+GNMI_PATH = '/network-instance[name=lanswitch]/bridge-table/mac-table/mac'
 
-def flush_block():
-    global current_block
-    mac = None
-    ipv6_link_local = None
-    ipv6_global = None
-    is_valid_packet = False
+# === Preparar directorio de salida ===
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+bindings = {}
 
-    print("\n[DEBUG] Procesando bloque:")
-    for line in current_block:
-        print(f"[DEBUG] {line}")
+# === Procesar paquetes ICMPv6 Neighbor Solicitation ===
+def process_packet(pkt):
+    if pkt.haslayer(ICMPv6ND_NS):
+        eth_layer = pkt[Ether]
+        ns_layer = pkt[ICMPv6ND_NS]
+        mac = eth_layer.src.lower()
+        target_ip = ns_layer.tgt
+        timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
 
-        # Marcar paquetes válidos
-        if "neighbor solicitation" in line or "router solicitation" in line:
-            is_valid_packet = True
+        is_link_local = target_ip.startswith("fe80::")
 
-        # Extraer MAC desde "source link-address option"
-        match_mac = re.search(r'source link-address option.*?:\s+([0-9a-f:]{17})', line)
-        if match_mac:
-            mac = match_mac.group(1).lower()
-            print(f"[DEBUG] MAC detectada: {mac}")
+        if mac not in bindings:
+            bindings[mac] = {
+                "mac": mac,
+                "interface": "unknown",
+                "ipv6_link_local": None,
+                "ipv6_global": None,
+                "timestamp": timestamp
+            }
 
-        # Extraer IPv6 origen (ej: fe80::...)
-        match_ipv6_src = re.search(r'([0-9a-f:]+)\s+>\s+[0-9a-f:]+', line)
-        if match_ipv6_src:
-            src_candidate = match_ipv6_src.group(1)
-            if src_candidate != "::":
-                if src_candidate.startswith("fe80"):
-                    ipv6_link_local = src_candidate
-                    print(f"[DEBUG] IPv6 link-local detectado: {ipv6_link_local}")
-                else:
-                    ipv6_global = src_candidate
-                    print(f"[DEBUG] IPv6 global detectado: {ipv6_global}")
+        if is_link_local:
+            bindings[mac]["ipv6_link_local"] = target_ip
+        else:
+            bindings[mac]["ipv6_global"] = target_ip
 
-        # Extraer IPv6 objetivo en Neighbor Solicitation ("who has")
-        match_target = re.search(r'who has ([0-9a-f:]+)', line)
-        if match_target:
-            target_candidate = match_target.group(1)
-            if target_candidate.startswith("fe80"):
-                ipv6_link_local = target_candidate
-                print(f"[DEBUG] IPv6 link-local (target) detectado: {ipv6_link_local}")
-            else:
-                ipv6_global = target_candidate
-                print(f"[DEBUG] IPv6 global (target) detectado: {ipv6_global}")
+        bindings[mac]["timestamp"] = timestamp
 
-    # Solo si hay MAC, guardar ambas direcciones posibles
-    if is_valid_packet and mac:
-        if ipv6_link_local:
-            add_entry(mac, ipv6_link_local)
-        if ipv6_global:
-            add_entry(mac, ipv6_global)
-    else:
-        print(f"[DEBUG] Paquete descartado: válido={is_valid_packet}, mac={mac}")
+# === Obtener tabla MAC desde SR Linux vía gNMI ===
+def get_mac_table():
+    cmd = [
+        "gnmic", "-a", GNMI_TARGET, "--skip-verify",
+        "-u", GNMI_USER, "-p", GNMI_PASS,
+        "-e", "json_ietf",
+        "get", "--path", GNMI_PATH
+    ]
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        output = json.loads(result.stdout)
+        mac_entries = output[0]['updates'][0]['values'][
+            "srl_nokia-network-instance:network-instance/bridge-table/srl_nokia-bridge-table-mac-table:mac-table"
+        ]["mac"]
+        return mac_entries
+    except Exception as e:
+        print(f"[!] Error al obtener tabla MAC: {e}")
+        return []
 
-    current_block = []
+# === Normalizar formato de MAC ===
+def normalize_mac(mac):
+    return mac.lower().replace("-", ":").strip()
 
-def signal_handler(sig, frame):
-    print("\n[+] Captura detenida. Escribiendo archivo JSON...")
-    flush_block()
-    with open("icmpv6_bindings.json", "w") as f:
-        json.dump(bindings, f, indent=2)
-    print("[✓] Archivo generado: icmpv6_bindings.json")
-    exit(0)
+# === Correlacionar MAC ↔ Interfaz ===
+def correlate_with_gnmi(mac_bindings, mac_table):
+    lookup = {
+        normalize_mac(entry["address"]): entry["destination"]
+        for entry in mac_table
+    }
 
-signal.signal(signal.SIGINT, signal_handler)
+    count = 0
+    for mac in mac_bindings:
+        norm_mac = normalize_mac(mac)
+        if norm_mac in lookup:
+            mac_bindings[mac]["interface"] = lookup[norm_mac]
+            count += 1
+    return count
 
-print(f"[*] Capturando ICMPv6 en la interfaz {INTERFACE}... Presiona Ctrl+C para detener.")
+# === Timeout ===
+def handler(signum, frame):
+    print("\n[*] Tiempo de captura terminado.")
+    finish()
 
-# Filtro para RS (133) y NS (135)
-tcpdump_filter = "icmp6 and (icmp6[0] == 133 or icmp6[0] == 135)"
+signal.signal(signal.SIGALRM, handler)
 
-proc = subprocess.Popen(
-    ["sudo", "tcpdump", "-l", "-i", INTERFACE, "-v", "-n", tcpdump_filter],
-    stdout=subprocess.PIPE,
-    stderr=subprocess.STDOUT,
-    text=True,
-    bufsize=1
-)
+# === Escribir resultado JSON ===
+def generate_output():
+    with open(OUTPUT_JSON, "w") as f:
+        json.dump(list(bindings.values()), f, indent=2)
+    print(f"[✅] Archivo generado: {OUTPUT_JSON}")
 
-for line in proc.stdout:
-    line = line.strip()
-    if line.startswith("IP6"):
-        flush_block()
-    current_block.append(line)
+def finish():
+    matched = correlate_with_gnmi(bindings, mac_table)
+    total = len(bindings)
+    print(f"\n[✓] {matched} de {total} MACs correlacionadas con interfaz")
+    generate_output()
+    sys.exit(0)
+
+# === MAIN ===
+if __name__ == "__main__":
+    print("[*] Obteniendo tabla MAC desde SR Linux...")
+    mac_table = get_mac_table()
+    print(f"[+] {len(mac_table)} entradas obtenidas de la tabla MAC")
+
+    # DEBUG: MACs del SR Linux
+    print("\n[DEBUG] MACs en tabla gNMI:")
+    for entry in mac_table:
+        print(f" - {entry['address']} => {entry['destination']}")
+
+    print(f"[*] Capturando tráfico ICMPv6 Neighbor Solicitation en '{INTERFACE}' durante {CAPTURE_DURATION} segundos...")
+    signal.alarm(CAPTURE_DURATION)
+
+    sniff(
+        iface=INTERFACE,
+        filter="icmp6",
+        prn=process_packet,
+        store=False
+    )
+
+    # Si termina manualmente antes del timeout
+    print("\n[DEBUG] MACs capturadas:")
+    for m in bindings:
+        print(f" - {m}")
+
+    finish()
