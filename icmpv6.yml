@@ -90,6 +90,7 @@ topology:
         #- configs/capture-and-correlate.sh:/root/capture-and-correlate.sh
         #- configs/send-to-elastic.sh:/root/send-to-elastic.sh
         - configs/icmpv6_captura.py:/root/icmpv6_captura.py
+        - configs/alerts-nd.py:/root/alerts-nd.py
       #cmd: --config /gnmic-config.yml --log subscribe
       exec:
         - chmod +x /root/gnmic.sh
