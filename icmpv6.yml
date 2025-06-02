@@ -73,7 +73,7 @@ topology:
        image: docker.io/esanchezv/srvhttps:latest
        binds:
         #- config/serverweb.sh:/root/serverweb.sh
-        - config/web-server.html:/var/www/localhost/htdocs/index.html
+        - configs/web-server.html:/var/www/localhost/htdocs/index.html
        exec:
        #- nginx
        #- ip -6 route del default dev eth0
