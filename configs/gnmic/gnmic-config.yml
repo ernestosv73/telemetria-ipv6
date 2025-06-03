@@ -1,6 +1,6 @@
 username: admin
 password: NokiaSrl1!
-insecure: true
+insecure: false
 skip-verify: true
 encoding: json_ietf
 timeout: 10s
