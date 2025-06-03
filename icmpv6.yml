@@ -96,17 +96,17 @@ topology:
       kind: linux
       image: esanchezv/hellt-gnmic:latest
       binds:
-        - configs/gnmic.sh:/root/gnmic.sh
+        #- configs/gnmic.sh:/root/gnmic.sh
         - configs/gnmic/gnmic-config.yml:/gnmic-config.yml:ro
         #- configs/capture-and-correlate.sh:/root/capture-and-correlate.sh
         #- configs/send-to-elastic.sh:/root/send-to-elastic.sh
-        - configs/icmpv6_captura.py:/root/icmpv6_captura.py
-        - configs/alerts-nd.py:/root/alerts-nd.py
-      #cmd: --config /gnmic-config.yml --log subscribe
-      exec:
-        - chmod +x /root/gnmic.sh
-        - bash /root/gnmic.sh
-        - mkdir /etc/periodic/1min
+        #- configs/icmpv6_captura.py:/root/icmpv6_captura.py
+        #- configs/alerts-nd.py:/root/alerts-nd.py
+      cmd: --config /gnmic-config.yml --log subscribe
+      #exec:
+        #- chmod +x /root/gnmic.sh
+        #- bash /root/gnmic.sh
+        #- mkdir /etc/periodic/1min
         #- cp /root/capture-and-correlate.sh /etc/periodic/1min/capture-and-correlate
         #- chmod +x /etc/periodic/1min/capture-and-correlate
 
