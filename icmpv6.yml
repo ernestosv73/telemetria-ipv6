@@ -103,6 +103,10 @@ topology:
         #- configs/send-to-elastic.sh:/root/send-to-elastic.sh
         #- configs/icmpv6_captura.py:/root/icmpv6_captura.py
         #- configs/alerts-nd.py:/root/alerts-nd.py
+
+      exec:
+         - mkdir /data
+         - chmod +x /data
       cmd: --config /gnmic-config.yml --log subscribe
       #exec:
         #- chmod +x /root/gnmic.sh
