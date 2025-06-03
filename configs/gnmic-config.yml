@@ -1,0 +1,19 @@
+username: admin
+timeout: 10s
+
+common_srl_settings: &srl_config
+  skip-verify: true
+  insecure: false
+  password: NokiaSrl1!
+  subscriptions:
+    - srl-bridge-table
+
+targets:
+  srlswitch: *srl_config
+
+subscriptions:
+  srl-bridge-table:
+    mode: stream
+    stream-mode: on-change
+    paths:
+      - /network-instance[name=lanswitch]/bridge-table/mac-table
