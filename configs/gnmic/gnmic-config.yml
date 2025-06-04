@@ -1,29 +1,19 @@
-username: admin
-password: NokiaSrl1!
-insecure: false
-skip-verify: true
-encoding: json_ietf
-timeout: 10s
-
-targets:
-  srlswitch:
-    address: srlswitch:57400
-
 subscriptions:
-  srl-mac-table:
-    mode: stream
-    stream-mode: on-change
+  mac-table-sub:
     paths:
       - /network-instance[name=lanswitch]/bridge-table/mac-table/mac[address=*]
+    mode: stream
+    stream-mode: on-change
+    sample-interval: 30s
 
 outputs:
-  maclog:
+  - name: maclog
     type: file
-    filename: /data/mac_table_updates.json
+    file-name: /data/mac_table_updates.json
     format: json
-
-
-       
-     
-
-
+    multiline: true
+    indent: "  "
+    separator: "\n"
+    split-events: true
+    add-target: true
+    target-template: "{{ .Target }}"
