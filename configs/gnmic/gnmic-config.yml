@@ -1,26 +1,20 @@
 username: admin
-password: admin
-encoding: json_ietf
+password: NokiaSrl1!
+insecure: false
 skip-verify: true
-insecure: true
+encoding: json_ietf
+timeout: 10s
 
 targets:
   srlswitch:
-    address: 192.168.1.10:57400
-    username: admin
-    password: admin
+    address: srlswitch:57400
 
 subscriptions:
-  mac-table-sub:
+  srl-mac-table:
+    mode: stream
+    stream-mode: on-change
     paths:
       - /network-instance[name=lanswitch]/bridge-table/mac-table/mac[address=*]
-    mode: on_change
-    stream-mode: stream
-    encoding: json_ietf
-    sample-interval: 10s
-    suppress-redundant: true
-    heartbeat-interval: 60s
-
 outputs:
   file_output:
     type: file
