@@ -16,7 +16,14 @@ subscriptions:
     paths:
       - /network-instance[name=lanswitch]/bridge-table/mac-table/mac[address=*]
 
-
+outputs:
+  maclog:
+    type: file
+    file:
+      path: /data/mac_table_updates.json
+      rotation-interval: 10m
+      max-size: 5MB
+      compression: false
 
        
      
