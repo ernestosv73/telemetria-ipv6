@@ -94,8 +94,8 @@ topology:
 
     PC3:
       kind: linux
-      #image: esanchezv/hellt-gnmic:latest
-      image: ghcr.io/openconfig/gnmic:0.39.1
+      image: esanchezv/hellt-gnmic:latest
+      #image: ghcr.io/openconfig/gnmic:0.39.1
       binds:
         #- configs/gnmic.sh:/root/gnmic.sh
         - configs/gnmic/gnmic-config.yml:/gnmic-config.yml:ro
@@ -107,7 +107,7 @@ topology:
       exec:
          - mkdir /data
          - chmod +x /data
-      cmd: --config /gnmic-config.yml --log subscribe
+      #cmd: --config /gnmic-config.yml --log subscribe
       #exec:
         #- chmod +x /root/gnmic.sh
         #- bash /root/gnmic.sh
