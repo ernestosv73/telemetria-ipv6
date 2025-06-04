@@ -19,11 +19,9 @@ subscriptions:
 outputs:
   maclog:
     type: file
-    file:
-      path: /data/mac_table_updates.json
-      rotation-interval: 10m
-      max-size: 5MB
-      compression: false
+    filename: /data/mac_table_updates.json
+    format: json
+
 
        
      
