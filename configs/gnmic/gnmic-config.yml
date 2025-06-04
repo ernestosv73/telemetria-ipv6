@@ -15,14 +15,15 @@ subscriptions:
     stream-mode: on-change
     paths:
       - /network-instance[name=lanswitch]/bridge-table/mac-table/mac[address=*]
+
 outputs:
   file_output:
     type: file
-    file-name: /data/mac_updates.json
-    file-type: json
+    filename: /data/mac_updates.json
     format: json
     multiline: true
     indent: "  "
     separator: "\n"
     split-events: false
-    add-target: true
+    
+
