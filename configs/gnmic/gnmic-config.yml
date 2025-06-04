@@ -1,3 +1,14 @@
+username: admin
+password: NokiaSrl1!
+insecure: false
+skip-verify: true
+encoding: json_ietf
+timeout: 10s
+
+targets:
+  srlswitch:
+    address: srlswitch:57400
+
 subscriptions:
   mac-table-sub:
     paths:
