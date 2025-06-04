@@ -1,19 +1,27 @@
 username: admin
+password: NokiaSrl1!
+insecure: false
+skip-verify: true
+encoding: json_ietf
 timeout: 10s
 
-common_srl_settings: &srl_config
-  skip-verify: true
-  insecure: false
-  password: NokiaSrl1!
-  subscriptions:
-    - srl-bridge-table
-
 targets:
-  srlswitch: *srl_config
+  srlswitch:
+    address: srlswitch:57400
 
 subscriptions:
-  srl-bridge-table:
+  srl-mac-table:
     mode: stream
     stream-mode: on-change
     paths:
-      - /network-instance[name=lanswitch]/bridge-table/mac-table
+      - /network-instance[name=lanswitch]/bridge-table/mac-table/mac[address=*]
+
+outputs:
+  maclog:
+    type: file
+    filename: /data/mac_table_updates.json
+    format: json
+
+
+       
+     
