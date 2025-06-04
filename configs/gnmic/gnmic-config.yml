@@ -16,54 +16,9 @@ subscriptions:
     paths:
       - /network-instance[name=lanswitch]/bridge-table/mac-table/mac[address=*]
 
-outputs:
-  elastic-maclog:
-    type: elasticsearch
-    elasticsearch:
-      addresses:
-        - http://172.20.20.9:9200
-      index: srl-mac-table
-      #username: elastic         # Opcional, solo si tienes auth
-      #password: changeme        # Opcional, idem
-      #insecure: true            # Para HTTP o certs autofirmados
-      flush-interval: 1s
-    event-processors:
-      - trim-prefixes
-      - rename-srl-interface
-      - oper-state-to-int
 
-processors:
-  trim-prefixes:
-    event-strings:
-      value-names:
-        - "^/state/.*"
-      transforms:
-        - trim-prefix:
-            apply-on: "name"
-            prefix: "/state/"
 
-  oper-state-to-int:
-    event-strings:
-      value-names:
-        - ".*"
-      transforms:
-        - replace:
-            apply-on: "value"
-            old: "up"
-            new: "1"
-        - replace:
-            apply-on: "value"
-            old: "down"
-            new: "0"
-
-  rename-srl-interface:
-    event-strings:
-      tag-names:
-        - "^interface_name"
-      transforms:
-        - replace:
-            apply-on: "value"
-            old: "ethernet-(\\d+)/(\\d+)"
-            new: "e$1-$2"
+       
+     
 
 
