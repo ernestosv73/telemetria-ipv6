@@ -12,7 +12,7 @@ topology:
       type: ixrh4
       #binds:
         #- configs/icmpv6_captura.py:/root/icmpv6_captura.py
-      #startup-config: switch/config.json
+      startup-config: switch/config.json
       #exec:
        #- chmod +x /root/icmpv6_captura.py
        #- bash /root/nd_snooping_multi.sh
