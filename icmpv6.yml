@@ -9,7 +9,7 @@ topology:
     srlswitch:
       kind: nokia_srlinux
       image: ghcr.io/nokia/srlinux:24.10.1
-      type: ixrh4
+      type: ixrd3
       #binds:
         #- configs/icmpv6_captura.py:/root/icmpv6_captura.py
       startup-config: switch/config.json
