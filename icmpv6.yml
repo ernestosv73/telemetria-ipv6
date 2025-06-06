@@ -97,20 +97,20 @@ topology:
       image: esanchezv/hellt-gnmic:latest
       #image: ghcr.io/openconfig/gnmic:0.39.1
       binds:
-        #- configs/gnmic.sh:/root/gnmic.sh
+        - configs/python_scapy.sh:/root/python_scapy.sh
         - configs/gnmic/gnmic-config.yml:/gnmic-config.yml:ro
         #- configs/capture-and-correlate.sh:/root/capture-and-correlate.sh
         #- configs/send-to-elastic.sh:/root/send-to-elastic.sh
-        #- configs/icmpv6_captura.py:/root/icmpv6_captura.py
+        - configs/icmpv6_capturav2.py:/root/icmpv6_capturav2.py
         #- configs/alerts-nd.py:/root/alerts-nd.py
 
-      exec:
-         - mkdir /data
-         - chmod +x /data
-      #cmd: --config /gnmic-config.yml --log subscribe
       #exec:
-        #- chmod +x /root/gnmic.sh
-        #- bash /root/gnmic.sh
+         #- mkdir /data
+         #- chmod +x /data
+      #cmd: --config /gnmic-config.yml --log subscribe
+      exec:
+         - chmod +x /root/python_scapy.sh
+         - bash /root/python_scapy.sh
         #- mkdir /etc/periodic/1min
         #- cp /root/capture-and-correlate.sh /etc/periodic/1min/capture-and-correlate
         #- chmod +x /etc/periodic/1min/capture-and-correlate
