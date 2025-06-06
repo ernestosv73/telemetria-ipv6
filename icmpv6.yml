@@ -103,12 +103,10 @@ topology:
         #- configs/send-to-elastic.sh:/root/send-to-elastic.sh
         - configs/icmpv6_capturav2.py:/root/icmpv6_capturav2.py
         #- configs/alerts-nd.py:/root/alerts-nd.py
-
-      #exec:
-         #- mkdir /data
-         #- chmod +x /data
-      #cmd: --config /gnmic-config.yml --log subscribe
+      
       exec:
+         - mkdir /data
+         - chmod +x /data
          - chmod +x /root/python_scapy.sh
          - bash /root/python_scapy.sh
         #- mkdir /etc/periodic/1min
