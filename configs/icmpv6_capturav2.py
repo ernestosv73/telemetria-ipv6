@@ -1,124 +1,105 @@
-#!/usr/bin/env python3
-
-from scapy.all import sniff, Ether, IPv6, ICMPv6ND_NS, ICMPv6ND_NA
-from datetime import datetime
 import json
-import signal
-import sys
+import time
+import threading
+from scapy.all import sniff, IPv6, ICMPv6ND_NS, ICMPv6NDOptSrcLLAddr
+from datetime import datetime
 import os
 
-# === Configuración ===
-INTERFACE = "eth1"
-CAPTURE_DURATION = 60  # segundos
-MAC_UPDATES_FILE = "/data/mac_updates.json"
-OUTPUT_DIR = "/data"
+# Ruta a archivo que gnmic va escribiendo
+MAC_UPDATES_FILE = '/data/mac_updates.json'
+# Archivo con tabla final actualizada
+OUTPUT_FILE = '/data/mac_ipv6_bindings_dynamic.json'
 
-# === Variables globales ===
-bindings = {}
-mac_lookup = {}
+bindings = {}  # Clave: MAC, Valor: dict con interface, IPs, etc.
+lock = threading.Lock()
 
-# === Normalizar MAC ===
-def normalize_mac(mac):
-    return mac.lower().replace("-", ":").strip()
+def log(msg):
+    print(f"[{datetime.utcnow().isoformat()}] {msg}")
 
-# === Extraer última tabla MAC del archivo JSON por líneas ===
-def load_latest_mac_table():
-    mac_table = {}
+def parse_mac_updates():
+    """Monitorea el archivo generado por gnmic --log y actualiza las interfaces de las MACs."""
+    log("Iniciando monitoreo de tabla MAC")
+    seen_offsets = 0
+    while True:
+        try:
+            with open(MAC_UPDATES_FILE, 'r') as f:
+                lines = f.readlines()
+                new_lines = lines[seen_offsets:]
+                seen_offsets = len(lines)
 
-    try:
-        with open(MAC_UPDATES_FILE, "r") as f:
-            for line in f:
-                try:
-                    data = json.loads(line)
-                    if "updates" not in data:
+                for line in new_lines:
+                    try:
+                        data = json.loads(line)
+                        for update in data.get("updates", []):
+                            mac_path = update["Path"]
+                            values = update["values"]
+                            mac_info = list(values.values())[0]
+                            mac = mac_path.split("mac[address=")[-1].split("]")[0].upper()
+                            interface = mac_info.get("destination", "")
+
+                            with lock:
+                                if mac not in bindings:
+                                    bindings[mac] = {
+                                        "mac_address": mac,
+                                        "interface": interface,
+                                        "ipv6_link_local": None,
+                                        "ipv6_global": None,
+                                        "last_seen": datetime.utcnow().isoformat()
+                                    }
+                                else:
+                                    bindings[mac]["interface"] = interface
+                                    bindings[mac]["last_seen"] = datetime.utcnow().isoformat()
+
+                    except json.JSONDecodeError:
                         continue
+        except FileNotFoundError:
+            pass
+        time.sleep(1)
 
-                    for update in data["updates"]:
-                        path = update.get("Path", "")
-                        if "mac[address=" in path:
-                            mac_start = path.find("mac[address=") + len("mac[address=")
-                            mac_end = path.find("]", mac_start)
-                            mac = path[mac_start:mac_end].strip().lower()
+def process_icmpv6(packet):
+    """Procesa paquetes ICMPv6 NS para extraer direcciones IPv6 y asociarlas con MACs"""
+    if IPv6 in packet and ICMPv6ND_NS in packet:
+        src_ip = packet[IPv6].src
+        mac = None
+        if ICMPv6NDOptSrcLLAddr in packet:
+            mac = packet[ICMPv6NDOptSrcLLAddr].lladdr.upper()
+        if mac:
+            with lock:
+                if mac not in bindings:
+                    bindings[mac] = {
+                        "mac_address": mac,
+                        "interface": None,
+                        "ipv6_link_local": None,
+                        "ipv6_global": None,
+                        "last_seen": datetime.utcnow().isoformat()
+                    }
+                if src_ip.startswith("fe80"):
+                    bindings[mac]["ipv6_link_local"] = src_ip
+                else:
+                    bindings[mac]["ipv6_global"] = src_ip
+                bindings[mac]["last_seen"] = datetime.utcnow().isoformat()
 
-                            mac = normalize_mac(mac)
-                            values = update.get("values", {})
-                            for key, val in values.items():
-                                if val.get("type") != "learnt":
-                                    continue
-                                interface = val.get("destination", "unknown")
-                                mac_table[mac] = interface
-                except json.JSONDecodeError:
-                    continue
-    except Exception as e:
-        print(f"[!] Error al procesar archivo MAC updates: {e}")
+def start_packet_capture(interface="eth1"):
+    log(f"Iniciando captura de ICMPv6 en {interface}")
+    sniff(iface=interface, filter="icmp6 and ip6[40] == 135", prn=process_icmpv6, store=0)
 
-    return mac_table
+def write_bindings_periodically():
+    log(f"Escribiendo tabla a {OUTPUT_FILE} cada 5 segundos")
+    while True:
+        with lock:
+            with open(OUTPUT_FILE, "w") as f:
+                json.dump(list(bindings.values()), f, indent=2)
+        time.sleep(5)
 
-# === Procesar paquetes ICMPv6 NS/NA ===
-def process_packet(pkt):
-    if pkt.haslayer(ICMPv6ND_NS) or pkt.haslayer(ICMPv6ND_NA):
-        eth = pkt[Ether]
-        ipv6 = pkt[IPv6]
-        icmp = pkt.getlayer(ICMPv6ND_NS) or pkt.getlayer(ICMPv6ND_NA)
-
-        src_mac = normalize_mac(eth.src)
-        target_ip = icmp.tgt
-        timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
-
-        if src_mac not in mac_lookup:
-            return  # ignorar MACs no conocidas
-
-        if src_mac not in bindings:
-            bindings[src_mac] = {
-                "mac": src_mac,
-                "interface": mac_lookup[src_mac],
-                "ipv6_link_local": None,
-                "ipv6_global": None,
-                "timestamp": timestamp
-            }
-
-        if target_ip.startswith("fe80::"):
-            bindings[src_mac]["ipv6_link_local"] = target_ip
-        else:
-            bindings[src_mac]["ipv6_global"] = target_ip
-
-        bindings[src_mac]["timestamp"] = timestamp
-
-# === Timeout handler ===
-def timeout_handler(signum, frame):
-    print("\n[*] Tiempo de captura finalizado.")
-    generate_output()
-    sys.exit(0)
-
-signal.signal(signal.SIGALRM, timeout_handler)
-
-# === Escribir salida ===
-def generate_output():
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-    out_file = f"{OUTPUT_DIR}/bindings_{timestamp}.json"
-    with open(out_file, "w") as f:
-        json.dump(list(bindings.values()), f, indent=2)
-    print(f"[✅] Archivo generado: {out_file}")
-
-# === MAIN ===
 if __name__ == "__main__":
-    print(f"[*] Cargando última tabla MAC desde '{MAC_UPDATES_FILE}'...")
-    mac_lookup = load_latest_mac_table()
-    print(f"[+] {len(mac_lookup)} entradas encontradas.")
+    t1 = threading.Thread(target=parse_mac_updates)
+    t2 = threading.Thread(target=start_packet_capture, kwargs={"interface": "eth1"})
+    t3 = threading.Thread(target=write_bindings_periodically)
 
-    if not mac_lookup:
-        print("[!] No hay datos en la tabla MAC. Abortando.")
-        sys.exit(1)
+    t1.start()
+    t2.start()
+    t3.start()
 
-    print(f"[*] Iniciando captura ICMPv6 en '{INTERFACE}' por {CAPTURE_DURATION} segundos...")
-    signal.alarm(CAPTURE_DURATION)
-
-    sniff(
-        iface=INTERFACE,
-        filter="icmp6",
-        prn=process_packet,
-        store=False
-    )
-
-    # Si se interrumpe manualmente
-    generate_output()
+    t1.join()
+    t2.join()
+    t3.join()
