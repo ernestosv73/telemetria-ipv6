@@ -23,23 +23,36 @@ def normalize_mac(mac):
 
 # === Extraer última tabla MAC del archivo JSON por líneas ===
 def load_latest_mac_table():
+    mac_table = {}
+
     try:
         with open(MAC_UPDATES_FILE, "r") as f:
-            lines = f.readlines()
-            for line in reversed(lines):
+            for line in f:
                 try:
                     data = json.loads(line)
-                    mac_entries = data.get("mac", [])
-                    if mac_entries:
-                        return {
-                            normalize_mac(entry["address"]): entry.get("destination", "unknown")
-                            for entry in mac_entries
-                        }
+                    if "updates" not in data:
+                        continue
+
+                    for update in data["updates"]:
+                        path = update.get("Path", "")
+                        if "mac[address=" in path:
+                            mac_start = path.find("mac[address=") + len("mac[address=")
+                            mac_end = path.find("]", mac_start)
+                            mac = path[mac_start:mac_end].strip().lower()
+
+                            mac = normalize_mac(mac)
+                            values = update.get("values", {})
+                            for key, val in values.items():
+                                if val.get("type") != "learnt":
+                                    continue
+                                interface = val.get("destination", "unknown")
+                                mac_table[mac] = interface
                 except json.JSONDecodeError:
                     continue
     except Exception as e:
-        print(f"[!] Error al leer MAC updates: {e}")
-    return {}
+        print(f"[!] Error al procesar archivo MAC updates: {e}")
+
+    return mac_table
 
 # === Procesar paquetes ICMPv6 NS/NA ===
 def process_packet(pkt):
