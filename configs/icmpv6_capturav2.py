@@ -1,8 +1,11 @@
-import json
-import time
+#!/usr/bin/env python3
+
+from scapy.all import sniff, Ether, IPv6
 from datetime import datetime
-from scapy.all import sniff, Ether, IPv6, ICMPv6ND_NS, ICMPv6ND_NA
+import json
+import os
 import threading
+import time
 
 # === Configuración ===
 INTERFACE = "eth1"  # Interfaz donde capturar ICMPv6
@@ -11,8 +14,8 @@ OUTPUT_JSON = "/data/mac_ipv6_bindings_dynamic.json"
 POLL_INTERVAL = 5  # segundos para leer cambios en mac_updates.json
 
 # === Variables globales ===
-mac_table = {}  # { mac: { interface, timestamp } }
-bindings = {}   # { mac: { mac, interface, ipv6_link_local, ipv6_global, timestamp } }
+bindings = {}          # { mac: { mac, interface, ipv6_link_local, ipv6_global, timestamp } }
+mac_table = {}         # { normalized_mac: destination }
 
 # === Función: Leer archivo mac_updates.json ===
 def actualizar_tabla_mac():
@@ -20,11 +23,12 @@ def actualizar_tabla_mac():
     try:
         with open(MAC_UPDATES_FILE, "r") as f:
             content = f.read().strip()
-        
+
         if not content:
             print(f"[{datetime.now().isoformat()}] Archivo vacío: {MAC_UPDATES_FILE}")
             return
 
+        mac_table.clear()
         for block in content.strip().split("\n"):
             if not block.startswith("{"):
                 continue
@@ -48,30 +52,23 @@ def actualizar_tabla_mac():
                         if "reserved" in interface.lower():
                             continue
 
-                        mac_table[normalized_mac] = {
-                            "interface": interface,
-                            "timestamp": datetime.now().isoformat()
-                        }
+                        mac_table[normalized_mac] = interface
 
-            except json.JSONDecodeError as je:
-                print(f"[{datetime.now().isoformat()}] Error decodificando bloque JSON: {je}")
+            except json.JSONDecodeError:
+                print(f"[{datetime.now().isoformat()}] Línea no es JSON válido: {block}")
     except Exception as e:
         print(f"[{datetime.now().isoformat()}] Error leyendo archivo: {e}")
 
-# === Función: Leer tabla MAC periódicamente ===
+# === Función: Monitorear archivo de MACs ===
 def monitorear_archivo_mac():
     while True:
         actualizar_tabla_mac()
         time.sleep(POLL_INTERVAL)
 
 # === Función: Procesar paquetes ICMPv6 ===
-
 def procesar_paquete(pkt):
     try:
-        if not (pkt.haslayer(Ether) and pkt.haslayer(IPv6)):
-            return
-
-        if not (pkt.haslayer(ICMPv6ND_NS) or pkt.haslayer(ICMPv6ND_NA)):
+        if not pkt.haslayer(Ether) or not pkt.haslayer(IPv6):
             return
 
         eth_layer = pkt[Ether]
@@ -80,16 +77,15 @@ def procesar_paquete(pkt):
         eth_src = eth_layer.src.lower()
         ipv6_addr = ipv6_layer.src
 
-        # Descartar direcciones IPv6 vacías o inválidas
+        # Descartar direcciones IPv6 inválidas
         if ipv6_addr == "::":
-            print(f"[{datetime.now().isoformat()}] Dirección IPv6 inválida (::) en paquete de {eth_src}")
             return
 
         timestamp = datetime.utcnow().isoformat()
 
         # Inicializar si no existe
         if eth_src not in bindings:
-            interface = mac_table.get(eth_src, {}).get("interface", "unknown")
+            interface = mac_table.get(eth_src, "unknown")
             bindings[eth_src] = {
                 "mac": eth_src,
                 "interface": interface,
@@ -111,17 +107,14 @@ def procesar_paquete(pkt):
 
     except Exception as e:
         print(f"[{datetime.now().isoformat()}] Error procesando paquete: {e}")
-       
 
-  
-
-# === Función: Capturar tráfico ICMPv6 ===
+# === Función: Capturar tráfico ICMPv6 en tiempo real ===
 def capturar_icmpv6():
     print(f"[{datetime.now().isoformat()}] Iniciando captura ICMPv6 en {INTERFACE}")
-    # Filtro específico para Neighbor Solicitation y Advertisement
+    # Filtro: Neighbor Solicitation (135) y Advertisement (136)
     sniff(
         iface=INTERFACE,
-        filter="ip6[40] == 135 or ip6[40] == 136",  # 135: NS, 136: NA
+        filter="icmp6 && ip6[40] == 135 or icmp6 && ip6[40] == 136",
         prn=procesar_paquete,
         store=False
     )
@@ -149,6 +142,9 @@ if __name__ == "__main__":
     t2.start()
     t3.start()
 
-    t1.join()
-    t2.join()
-    t3.join()
+    try:
+        t1.join()
+        t2.join()
+        t3.join()
+    except KeyboardInterrupt:
+        print(f"[{datetime.now().isoformat()}] Deteniendo script...")
