@@ -13,7 +13,6 @@ OUTPUT_JSON = "/data/mac_ipv6_bindings_dynamic.json"
 MAC_UPDATES_FILE = "/data/mac_updates.json"
 
 bindings = {}
-mac_table = []
 mac_lookup = {}
 
 # === Cargar tabla MAC desde archivo ===
@@ -24,14 +23,12 @@ def load_mac_table_from_file(file_path):
             for line in f:
                 try:
                     data = json.loads(line.strip())
-
-                    # Procesar solo updates válidos
                     if "updates" in data:
                         for update in data["updates"]:
                             path = update["Path"]
                             if "mac[address=" in path:
                                 mac = path.split("mac[address=")[1].split("]")[0]
-                                mac = mac.lower().replace("-", ":")
+                                mac = mac.lower().replace("-", ":").strip()
                                 destination = update["values"][
                                     "srl_nokia-network-instance:network-instance/bridge-table/srl_nokia-bridge-table-mac-table:mac-table/mac"
                                 ]["destination"]
@@ -40,7 +37,7 @@ def load_mac_table_from_file(file_path):
                         for deleted_path in data["deletes"]:
                             if "mac[address=" in deleted_path:
                                 mac = deleted_path.split("mac[address=")[1].split("]")[0]
-                                mac = mac.lower().replace("-", ":")
+                                mac = mac.lower().replace("-", ":").strip()
                                 entries.pop(mac, None)
                 except json.JSONDecodeError:
                     continue
@@ -56,21 +53,19 @@ def process_packet(pkt):
         src_mac = eth.src.lower().replace("-", ":").strip()
         src_ip = ipv6.src
 
-        # Determinar dirección de destino según tipo
-        if pkt.haslayer(ICMPv6ND_NS):
-            ip_target = pkt[ICMPv6ND_NS].tgt
-        elif pkt.haslayer(ICMPv6ND_NA):
-            ip_target = pkt[ICMPv6ND_NA].tgt
-        else:
-            return
+        print(f"[DEBUG] Paquete ICMPv6 recibido de MAC: {src_mac}, IP: {src_ip}")
 
-        # Filtrar MACs no conocidas
         if src_mac not in mac_lookup:
+            print(f"[DEBUG] MAC {src_mac} NO encontrada en mac_lookup")
+            print(f"[DEBUG] MACs disponibles: {list(mac_lookup.keys())}")
             return
+        else:
+            print(f"[DEBUG] MAC {src_mac} encontrada. Procesando binding...")
 
         iface = mac_lookup[src_mac]
-        is_link_local = ip_target.startswith("fe80::")
-        timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+        is_link_local = pkt[ICMPv6ND_NS].tgt.startswith("fe80::") if pkt.haslayer(ICMPv6ND_NS) else pkt[ICMPv6ND_NA].tgt.startswith("fe80::")
+        ip_target = pkt[ICMPv6ND_NS].tgt if pkt.haslayer(ICMPv6ND_NS) else pkt[ICMPv6ND_NA].tgt
+        timestamp = datetime.utcnow().isoformat()
 
         if src_mac not in bindings:
             bindings[src_mac] = {
@@ -88,11 +83,10 @@ def process_packet(pkt):
 
         bindings[src_mac]["timestamp"] = timestamp
 
-        # Guardar en disco tras cada actualización
         with open(OUTPUT_JSON, 'w') as f:
             json.dump(list(bindings.values()), f, indent=2)
 
-# === Manejador de señales para detener captura con Ctrl+C ===
+# === Manejador de señales ===
 def signal_handler(sig, frame):
     print("\n[*] Captura detenida. Guardando archivo final...")
     with open(OUTPUT_JSON, 'w') as f:
@@ -108,6 +102,10 @@ if __name__ == "__main__":
     if not mac_lookup:
         print("[!] Tabla MAC vacía. Verifica el archivo mac_updates.json.")
         sys.exit(1)
+
+    print("[*] Lista de MACs cargadas:")
+    for mac, iface in mac_lookup.items():
+        print(f"  {mac} -> {iface}")
 
     signal.signal(signal.SIGINT, signal_handler)
     print(f"[*] Iniciando captura en {INTERFACE} (Ctrl+C para detener)...")
