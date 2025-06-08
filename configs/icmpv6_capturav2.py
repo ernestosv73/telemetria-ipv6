@@ -63,9 +63,17 @@ def process_packet(pkt):
             print(f"[DEBUG] MAC {src_mac} encontrada. Procesando binding...")
 
         iface = mac_lookup[src_mac]
-        is_link_local = pkt[ICMPv6ND_NS].tgt.startswith("fe80::") if pkt.haslayer(ICMPv6ND_NS) else pkt[ICMPv6ND_NA].tgt.startswith("fe80::")
+
+        # Extraer dirección de destino (target) del mensaje ICMPv6
         ip_target = pkt[ICMPv6ND_NS].tgt if pkt.haslayer(ICMPv6ND_NS) else pkt[ICMPv6ND_NA].tgt
+        is_link_local = ip_target.startswith("fe80::")
+
+        # NUEVO DEBUG
+        print(f"[DEBUG] ip_target extraída: {ip_target}")
+        print(f"[DEBUG] ¿Es link-local? {is_link_local}")
+
         timestamp = datetime.utcnow().isoformat()
+ 
 
         if src_mac not in bindings:
             bindings[src_mac] = {
@@ -82,6 +90,8 @@ def process_packet(pkt):
             bindings[src_mac]["ipv6_global"] = ip_target
 
         bindings[src_mac]["timestamp"] = timestamp
+        print(f"[DEBUG] Binding actualizado para {src_mac}: {bindings[src_mac]}")
+
 
         with open(OUTPUT_JSON, 'w') as f:
             json.dump(list(bindings.values()), f, indent=2)
