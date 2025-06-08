@@ -5,7 +5,7 @@ import queue
 from scapy.all import sniff, IPv6, ICMPv6ND_NS, ICMPv6ND_NA, get_if_hwaddr
 
 # Ruta al archivo mac_updates.json (en modo append)
-MAC_UPDATES_FILE = "mac_updates.json"
+MAC_UPDATES_FILE = "/data/mac_updates.json"
 CAPTURE_INTERFACE = "eth1"
 
 # Tabla dinámica MAC ↔ interfaz
