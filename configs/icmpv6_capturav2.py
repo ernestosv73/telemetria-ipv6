@@ -65,13 +65,12 @@ def monitorear_archivo_mac():
         time.sleep(POLL_INTERVAL)
 
 # === Función: Procesar paquetes ICMPv6 ===
+
 def procesar_paquete(pkt):
     try:
-        # Verificar capas mínimas necesarias
         if not (pkt.haslayer(Ether) and pkt.haslayer(IPv6)):
             return
 
-        # Asegurarse de que sea Neighbor Solicitation o Advertisement
         if not (pkt.haslayer(ICMPv6ND_NS) or pkt.haslayer(ICMPv6ND_NA)):
             return
 
@@ -90,9 +89,10 @@ def procesar_paquete(pkt):
 
         # Inicializar si no existe
         if eth_src not in bindings:
+            interface = mac_table.get(eth_src, {}).get("interface", "unknown")
             bindings[eth_src] = {
                 "mac": eth_src,
-                "interface": mac_table.get(eth_src, {}).get("interface", "unknown"),
+                "interface": interface,
                 "ipv6_link_local": None,
                 "ipv6_global": None,
                 "timestamp": timestamp
@@ -101,21 +101,30 @@ def procesar_paquete(pkt):
         is_link_local = ipv6_addr.startswith("fe80::")
 
         if is_link_local:
-            bindings[eth_src]["ipv6_link_local"] = ipv6_addr
+            if not bindings[eth_src]["ipv6_link_local"]:
+                bindings[eth_src]["ipv6_link_local"] = ipv6_addr
         else:
-            bindings[eth_src]["ipv6_global"] = ipv6_addr
+            if not bindings[eth_src]["ipv6_global"]:
+                bindings[eth_src]["ipv6_global"] = ipv6_addr
 
         bindings[eth_src]["timestamp"] = timestamp
 
     except Exception as e:
         print(f"[{datetime.now().isoformat()}] Error procesando paquete: {e}")
+       
 
   
 
 # === Función: Capturar tráfico ICMPv6 ===
 def capturar_icmpv6():
     print(f"[{datetime.now().isoformat()}] Iniciando captura ICMPv6 en {INTERFACE}")
-    sniff(iface=INTERFACE, filter="icmp6", prn=procesar_paquete, store=False)
+    # Filtro específico para Neighbor Solicitation y Advertisement
+    sniff(
+        iface=INTERFACE,
+        filter="ip6[40] == 135 or ip6[40] == 136",  # 135: NS, 136: NA
+        prn=procesar_paquete,
+        store=False
+    )
 
 # === Función: Guardar bindings periódicamente ===
 def guardar_periodicamente(intervalo):
