@@ -19,17 +19,18 @@ def actualizar_tabla_mac():
     global mac_table
     try:
         with open(MAC_UPDATES_FILE, "r") as f:
-            content = f.read().strip()
+            lines = [line.strip() for line in f.readlines()]
         
-        if not content:
+        if not lines:
             print(f"[{datetime.now().isoformat()}] Archivo vacío: {MAC_UPDATES_FILE}")
             return
 
-        for block in content.strip().split("\n"):
-            if not block.startswith("{"):
-                continue
+        for line in lines:
+            if not line.startswith("{"):
+                continue  # Saltar líneas que no empiezan con '{' (ej: sync-response)
+
             try:
-                data = json.loads(block)
+                data = json.loads(line)  # Cada línea es un objeto JSON independiente
                 if "updates" not in data:
                     continue
 
@@ -58,6 +59,8 @@ def actualizar_tabla_mac():
     except Exception as e:
         print(f"[{datetime.now().isoformat()}] Error leyendo archivo: {e}")
 
+                
+                       
 # === Función: Leer tabla MAC periódicamente ===
 def monitorear_archivo_mac():
     while True:
