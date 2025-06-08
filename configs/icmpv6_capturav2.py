@@ -1,150 +1,114 @@
 #!/usr/bin/env python3
 
-from scapy.all import sniff, Ether, IPv6
+from scapy.all import sniff, Ether, IPv6, ICMPv6ND_NS, ICMPv6ND_NA
 from datetime import datetime
 import json
 import os
-import threading
-import time
+import signal
+import sys
 
 # === Configuración ===
-INTERFACE = "eth1"  # Interfaz donde capturar ICMPv6
-MAC_UPDATES_FILE = "/data/mac_updates.json"
+INTERFACE = "eth1"
 OUTPUT_JSON = "/data/mac_ipv6_bindings_dynamic.json"
-POLL_INTERVAL = 5  # segundos para leer cambios en mac_updates.json
+MAC_UPDATES_FILE = "/data/mac_updates.json"
 
-# === Variables globales ===
-bindings = {}          # { mac: { mac, interface, ipv6_link_local, ipv6_global, timestamp } }
-mac_table = {}         # { normalized_mac: destination }
+bindings = {}
+mac_table = []
+mac_lookup = {}
 
-# === Función: Leer archivo mac_updates.json ===
-def actualizar_tabla_mac():
-    global mac_table
+# === Cargar tabla MAC desde archivo ===
+def load_mac_table_from_file(file_path):
+    entries = {}
     try:
-        with open(MAC_UPDATES_FILE, "r") as f:
-            content = f.read().strip()
+        with open(file_path, 'r') as f:
+            for line in f:
+                try:
+                    data = json.loads(line.strip())
 
-        if not content:
-            print(f"[{datetime.now().isoformat()}] Archivo vacío: {MAC_UPDATES_FILE}")
-            return
-
-        mac_table.clear()
-        for block in content.strip().split("\n"):
-            if not block.startswith("{"):
-                continue
-            try:
-                data = json.loads(block)
-                if "updates" not in data:
+                    # Procesar solo updates válidos
+                    if "updates" in data:
+                        for update in data["updates"]:
+                            path = update["Path"]
+                            if "mac[address=" in path:
+                                mac = path.split("mac[address=")[1].split("]")[0]
+                                mac = mac.lower().replace("-", ":")
+                                destination = update["values"][
+                                    "srl_nokia-network-instance:network-instance/bridge-table/srl_nokia-bridge-table-mac-table:mac-table/mac"
+                                ]["destination"]
+                                entries[mac] = destination
+                    elif "deletes" in data:
+                        for deleted_path in data["deletes"]:
+                            if "mac[address=" in deleted_path:
+                                mac = deleted_path.split("mac[address=")[1].split("]")[0]
+                                mac = mac.lower().replace("-", ":")
+                                entries.pop(mac, None)
+                except json.JSONDecodeError:
                     continue
-
-                for update in data["updates"]:
-                    path = update.get("Path", "")
-                    if "mac[address=" in path:
-                        mac_address = path.split("mac[address=")[-1].rstrip("]")
-                        normalized_mac = mac_address.lower()
-
-                        values = update.get("values", {})
-                        mac_info = values.get(
-                            "srl_nokia-network-instance:network-instance/bridge-table/srl_nokia-bridge-table-mac-table:mac-table/mac",
-                            {}
-                        )
-                        interface = mac_info.get("destination", "unknown")
-                        if "reserved" in interface.lower():
-                            continue
-
-                        mac_table[normalized_mac] = interface
-
-            except json.JSONDecodeError:
-                print(f"[{datetime.now().isoformat()}] Línea no es JSON válido: {block}")
     except Exception as e:
-        print(f"[{datetime.now().isoformat()}] Error leyendo archivo: {e}")
+        print(f"[!] Error leyendo {file_path}: {e}")
+    return entries
 
-# === Función: Monitorear archivo de MACs ===
-def monitorear_archivo_mac():
-    while True:
-        actualizar_tabla_mac()
-        time.sleep(POLL_INTERVAL)
+# === Procesar paquetes ICMPv6 NS y NA ===
+def process_packet(pkt):
+    if pkt.haslayer(ICMPv6ND_NS) or pkt.haslayer(ICMPv6ND_NA):
+        eth = pkt[Ether]
+        ipv6 = pkt[IPv6]
+        src_mac = eth.src.lower().replace("-", ":").strip()
+        src_ip = ipv6.src
 
-# === Función: Procesar paquetes ICMPv6 ===
-def procesar_paquete(pkt):
-    try:
-        if not pkt.haslayer(Ether) or not pkt.haslayer(IPv6):
+        # Determinar dirección de destino según tipo
+        if pkt.haslayer(ICMPv6ND_NS):
+            ip_target = pkt[ICMPv6ND_NS].tgt
+        elif pkt.haslayer(ICMPv6ND_NA):
+            ip_target = pkt[ICMPv6ND_NA].tgt
+        else:
             return
 
-        eth_layer = pkt[Ether]
-        ipv6_layer = pkt[IPv6]
-
-        eth_src = eth_layer.src.lower()
-        ipv6_addr = ipv6_layer.src
-
-        # Descartar direcciones IPv6 inválidas
-        if ipv6_addr == "::":
+        # Filtrar MACs no conocidas
+        if src_mac not in mac_lookup:
             return
 
-        timestamp = datetime.utcnow().isoformat()
+        iface = mac_lookup[src_mac]
+        is_link_local = ip_target.startswith("fe80::")
+        timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
 
-        # Inicializar si no existe
-        if eth_src not in bindings:
-            interface = mac_table.get(eth_src, "unknown")
-            bindings[eth_src] = {
-                "mac": eth_src,
-                "interface": interface,
+        if src_mac not in bindings:
+            bindings[src_mac] = {
+                "mac": src_mac,
+                "interface": iface,
                 "ipv6_link_local": None,
                 "ipv6_global": None,
                 "timestamp": timestamp
             }
 
-        is_link_local = ipv6_addr.startswith("fe80::")
-
         if is_link_local:
-            if not bindings[eth_src]["ipv6_link_local"]:
-                bindings[eth_src]["ipv6_link_local"] = ipv6_addr
+            bindings[src_mac]["ipv6_link_local"] = ip_target
         else:
-            if not bindings[eth_src]["ipv6_global"]:
-                bindings[eth_src]["ipv6_global"] = ipv6_addr
+            bindings[src_mac]["ipv6_global"] = ip_target
 
-        bindings[eth_src]["timestamp"] = timestamp
+        bindings[src_mac]["timestamp"] = timestamp
 
-    except Exception as e:
-        print(f"[{datetime.now().isoformat()}] Error procesando paquete: {e}")
+        # Guardar en disco tras cada actualización
+        with open(OUTPUT_JSON, 'w') as f:
+            json.dump(list(bindings.values()), f, indent=2)
 
-# === Función: Capturar tráfico ICMPv6 en tiempo real ===
-def capturar_icmpv6():
-    print(f"[{datetime.now().isoformat()}] Iniciando captura ICMPv6 en {INTERFACE}")
-    # Filtro: Neighbor Solicitation (135) y Advertisement (136)
-    sniff(
-        iface=INTERFACE,
-        filter="icmp6 && ip6[40] == 135 or icmp6 && ip6[40] == 136",
-        prn=procesar_paquete,
-        store=False
-    )
-
-# === Función: Guardar bindings periódicamente ===
-def guardar_periodicamente(intervalo):
-    while True:
-        try:
-            with open(OUTPUT_JSON, "w") as f:
-                json.dump(list(bindings.values()), f, indent=2)
-            print(f"[{datetime.now().isoformat()}] Escribiendo bindings a {OUTPUT_JSON}")
-        except Exception as e:
-            print(f"[{datetime.now().isoformat()}] Error al guardar archivo: {e}")
-        time.sleep(intervalo)
+# === Manejador de señales para detener captura con Ctrl+C ===
+def signal_handler(sig, frame):
+    print("\n[*] Captura detenida. Guardando archivo final...")
+    with open(OUTPUT_JSON, 'w') as f:
+        json.dump(list(bindings.values()), f, indent=2)
+    sys.exit(0)
 
 # === Main ===
 if __name__ == "__main__":
-    print(f"[{datetime.now().isoformat()}] Iniciando sistema de correlación MAC-IPv6")
+    print("[*] Cargando tabla MAC desde archivo...")
+    mac_lookup = load_mac_table_from_file(MAC_UPDATES_FILE)
+    print(f"[*] MACs activas cargadas: {len(mac_lookup)}")
 
-    t1 = threading.Thread(target=monitorear_archivo_mac)
-    t2 = threading.Thread(target=capturar_icmpv6)
-    t3 = threading.Thread(target=guardar_periodicamente, args=(POLL_INTERVAL,))
+    if not mac_lookup:
+        print("[!] Tabla MAC vacía. Verifica el archivo mac_updates.json.")
+        sys.exit(1)
 
-    t1.start()
-    t2.start()
-    t3.start()
-
-    try:
-        t1.join()
-        t2.join()
-        t3.join()
-    except KeyboardInterrupt:
-        print(f"[{datetime.now().isoformat()}] Deteniendo script...")
+    signal.signal(signal.SIGINT, signal_handler)
+    print(f"[*] Iniciando captura en {INTERFACE} (Ctrl+C para detener)...")
+    sniff(iface=INTERFACE, filter="icmp6", prn=process_packet, store=0)
