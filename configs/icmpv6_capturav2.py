@@ -66,31 +66,50 @@ def monitorear_archivo_mac():
 
 # === Función: Procesar paquetes ICMPv6 ===
 def procesar_paquete(pkt):
-    if not (pkt.haslayer(Ether) and pkt.haslayer(IPv6) and (pkt.haslayer(ICMPv6ND_NS) or pkt.haslayer(ICMPv6ND_NA))):
-        return
+    try:
+        if not (pkt.haslayer(Ether) and pkt.haslayer(IPv6)):
+            return
 
-    eth_src = pkt[Ether].src.lower()
-    ipv6_addr = pkt[IPv6].src
-    timestamp = datetime.utcnow().isoformat()
+        eth_layer = pkt[Ether]
+        ipv6_layer = pkt[IPv6]
 
-    # Inicializar si no existe
-    if eth_src not in bindings:
-        bindings[eth_src] = {
-            "mac": eth_src,
-            "interface": mac_table.get(eth_src, {}).get("interface", "unknown"),
-            "ipv6_link_local": None,
-            "ipv6_global": None,
-            "timestamp": timestamp
-        }
+        # Descartar paquetes sin NS o NA
+        if not (pkt.haslayer(ICMPv6ND_NS) and pkt.haslayer(ICMPv6ND_NA)) and \
+           not (pkt.haslayer(ICMPv6ND_NS) or pkt.haslayer(ICMPv6ND_NA)):
+            return
 
-    is_link_local = ipv6_addr.startswith("fe80::")
+        eth_src = eth_layer.src.lower()
+        ipv6_addr = ipv6_layer.src
 
-    if is_link_local:
-        bindings[eth_src]["ipv6_link_local"] = ipv6_addr
-    else:
-        bindings[eth_src]["ipv6_global"] = ipv6_addr
+        # Descartar direcciones IPv6 inválidas
+        if ipv6_addr == "::":
+            print(f"[{datetime.now().isoformat()}] Dirección IPv6 inválida (::) en paquete de {eth_src}")
+            return
 
-    bindings[eth_src]["timestamp"] = timestamp
+        timestamp = datetime.utcnow().isoformat()
+
+        # Inicializar si no existe
+        if eth_src not in bindings:
+            bindings[eth_src] = {
+                "mac": eth_src,
+                "interface": mac_table.get(eth_src, {}).get("interface", "unknown"),
+                "ipv6_link_local": None,
+                "ipv6_global": None,
+                "timestamp": timestamp
+            }
+
+        is_link_local = ipv6_addr.startswith("fe80::")
+
+        if is_link_local:
+            bindings[eth_src]["ipv6_link_local"] = ipv6_addr
+        else:
+            bindings[eth_src]["ipv6_global"] = ipv6_addr
+
+        bindings[eth_src]["timestamp"] = timestamp
+
+    except Exception as e:
+        print(f"[{datetime.now().isoformat()}] Error procesando paquete: {e}")
+ 
 
 # === Función: Capturar tráfico ICMPv6 ===
 def capturar_icmpv6():
