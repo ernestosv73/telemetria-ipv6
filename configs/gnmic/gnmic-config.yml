@@ -21,9 +21,6 @@ outputs:
     type: file
     filename: /data/mac_updates.json
     format: json
-    multiline: true
-    indent: "  "
-    separator: "\n"
-    split-events: false
+    split-events: true
     
 
