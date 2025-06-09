@@ -101,7 +101,7 @@ topology:
         - configs/gnmic/gnmic-config.yml:/gnmic-config.yml:ro
         - configs/envio_dinamico_elasticsearch.py:/root/envio_dinamico_elasticsearch.py
         - configs/icmpv6_capturav2.py:/root/icmpv6_capturav2.py
-        #- configs/alerts-nd.py:/root/alerts-nd.py
+        - configs/ndp_attack_detector.py:/root/ndp_attack_detector.py
       
       exec:
          - mkdir /data
