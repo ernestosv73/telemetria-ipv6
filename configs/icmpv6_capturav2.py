@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
-from scapy.all import sniff, Ether, IPv6, ICMPv6ND_NS
+from scapy.all import sniff, Ether, IPv6, ICMPv6ND_NS, ICMPv6ND_NA
+
 from datetime import datetime
 import json
 import os
