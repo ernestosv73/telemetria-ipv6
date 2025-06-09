@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from scapy.all import sniff, Ether, IPv6, ICMPv6ND_NS, ICMPv6ND_NA
+from scapy.all import sniff, Ether, IPv6, ICMPv6ND_NS
 from datetime import datetime
 import json
 import os
@@ -57,47 +57,69 @@ def periodic_mac_reload():
         mac_lookup = updated
         time.sleep(RELOAD_INTERVAL)
 
-# === Procesar paquetes ICMPv6 NS y NA ===
+# === Filtro para detectar solo mensajes NS válidos de DAD ===
+def is_dad_ns(pkt):
+    if not pkt.haslayer(ICMPv6ND_NS):
+        return False
+
+    ipv6 = pkt[IPv6]
+    dst_ip = ipv6.dst
+    src_ip = ipv6.src
+
+    # Solo considerar si es multicast ff02::1:ffXX:XXXX
+    if not dst_ip.lower().startswith("ff02::1:ff"):
+        return False
+
+    # La IP origen debe ser :: (tentativa) o fe80::/10
+    if src_ip != "::" and not src_ip.lower().startswith("fe80::"):
+        return False
+
+    return True
+
+# === Procesar paquetes ICMPv6 NS válidos (DAD) ===
 def process_packet(pkt):
-    if pkt.haslayer(ICMPv6ND_NS) or pkt.haslayer(ICMPv6ND_NA):
-        eth = pkt[Ether]
-        ipv6 = pkt[IPv6]
-        src_mac = eth.src.lower().replace("-", ":").strip()
-        src_ip = ipv6.src
+    if not is_dad_ns(pkt):
+        return
 
-        print(f"[DEBUG] Paquete ICMPv6 recibido de MAC: {src_mac}, IP: {src_ip}")
+    eth = pkt[Ether]
+    ipv6 = pkt[IPv6]
+    ns = pkt[ICMPv6ND_NS]
 
-        if src_mac not in mac_lookup:
-            print(f"[DEBUG] MAC {src_mac} NO encontrada en mac_lookup")
-            print(f"[DEBUG] MACs disponibles: {list(mac_lookup.keys())}")
-            return
-        else:
-            print(f"[DEBUG] MAC {src_mac} encontrada. Procesando binding...")
+    src_mac = eth.src.lower().replace("-", ":").strip()
+    src_ip = ipv6.src
+    dst_ip = ipv6.dst
+    target_ip = ns.tgt  # dirección IPv6 que se quiere usar
 
-        iface = mac_lookup[src_mac]
-        ip_target = pkt[ICMPv6ND_NS].tgt if pkt.haslayer(ICMPv6ND_NS) else pkt[ICMPv6ND_NA].tgt
-        is_link_local = ip_target.startswith("fe80::")
-        timestamp = datetime.utcnow().isoformat()
+    print(f"[DEBUG] NS DAD detectado: {src_mac} quiere usar {target_ip}")
 
-        if src_mac not in bindings:
-            bindings[src_mac] = {
-                "mac": src_mac,
-                "interface": iface,
-                "ipv6_link_local": None,
-                "ipv6_global": None,
-                "timestamp": timestamp
-            }
+    if src_mac not in mac_lookup:
+        print(f"[DEBUG] MAC {src_mac} NO encontrada en mac_lookup")
+        print(f"[DEBUG] MACs disponibles: {list(mac_lookup.keys())}")
+        return
 
-        if is_link_local:
-            bindings[src_mac]["ipv6_link_local"] = ip_target
-        else:
-            bindings[src_mac]["ipv6_global"] = ip_target
+    iface = mac_lookup[src_mac]
+    is_link_local = target_ip.lower().startswith("fe80::")
+    timestamp = datetime.utcnow().isoformat()
 
-        bindings[src_mac]["timestamp"] = timestamp
-        print(f"[DEBUG] Binding actualizado para {src_mac}: {bindings[src_mac]}")
+    if src_mac not in bindings:
+        bindings[src_mac] = {
+            "mac": src_mac,
+            "interface": iface,
+            "ipv6_link_local": None,
+            "ipv6_global": None,
+            "timestamp": timestamp
+        }
 
-        with open(OUTPUT_JSON, 'w') as f:
-            json.dump(list(bindings.values()), f, indent=2)
+    if is_link_local:
+        bindings[src_mac]["ipv6_link_local"] = target_ip
+    else:
+        bindings[src_mac]["ipv6_global"] = target_ip
+
+    bindings[src_mac]["timestamp"] = timestamp
+    print(f"[DEBUG] Binding actualizado para {src_mac}: {bindings[src_mac]}")
+
+    with open(OUTPUT_JSON, 'w') as f:
+        json.dump(list(bindings.values()), f, indent=2)
 
 # === Manejador de señales ===
 def signal_handler(sig, frame):
