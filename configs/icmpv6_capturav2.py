@@ -72,12 +72,25 @@ def process_packet(pkt):
         eth = pkt[Ether]
         ipv6 = pkt[IPv6]
         src_mac = eth.src.lower().replace("-", ":").strip()
+        dst_mac = eth.dst.lower().replace("-", ":").strip()
         src_ip = ipv6.src
+
+        # Validar mensajes NS que no son propios (ej. del router hacia el host)
+        if pkt.haslayer(ICMPv6ND_NS):
+            # Validar que dst_mac es del tipo solicited-node multicast
+            if dst_mac.startswith("33:33:ff"):
+                # Últimos 3 bytes de src_mac vs dst_mac
+                src_mac_suffix = src_mac.split(":")[-3:]
+                dst_mac_suffix = dst_mac.split(":")[-3:]
+                if src_mac_suffix != dst_mac_suffix:
+                    print(f"[DEBUG] NS no válido para binding: src_mac {src_mac} vs dst_mac {dst_mac}")
+                    return  # Salir sin procesar binding
 
         print(f"[DEBUG] Paquete ICMPv6 recibido de MAC: {src_mac}, IP: {src_ip}")
 
         if src_mac not in mac_lookup:
             print(f"[DEBUG] MAC {src_mac} NO encontrada en mac_lookup")
+            print(f"[DEBUG] MACs disponibles: {list(mac_lookup.keys())}")
             return
         else:
             print(f"[DEBUG] MAC {src_mac} encontrada. Procesando binding...")
@@ -96,15 +109,17 @@ def process_packet(pkt):
                 "timestamp": timestamp
             }
 
-        if is_link_local and bindings[src_mac]["ipv6_link_local"] != ip_target:
+        if is_link_local:
             bindings[src_mac]["ipv6_link_local"] = ip_target
-        elif not is_link_local and bindings[src_mac]["ipv6_global"] != ip_target:
+        else:
             bindings[src_mac]["ipv6_global"] = ip_target
 
         bindings[src_mac]["timestamp"] = timestamp
-
         print(f"[DEBUG] Binding actualizado para {src_mac}: {bindings[src_mac]}")
-        save_bindings()
+
+        with open(OUTPUT_JSON, 'w') as f:
+            json.dump(list(bindings.values()), f, indent=2)
+     
 
 # === Manejador de señales ===
 def signal_handler(sig, frame):
