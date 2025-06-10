@@ -57,6 +57,15 @@ def periodic_mac_reload():
         mac_lookup = updated
         time.sleep(RELOAD_INTERVAL)
 
+# === Guardar bindings válidos en archivo ===
+def save_bindings():
+    valid = [
+        b for b in bindings.values()
+        if b["ipv6_link_local"] or b["ipv6_global"]
+    ]
+    with open(OUTPUT_JSON, 'w') as f:
+        json.dump(valid, f, indent=2)
+
 # === Procesar paquetes ICMPv6 NS y NA ===
 def process_packet(pkt):
     if pkt.haslayer(ICMPv6ND_NS) or pkt.haslayer(ICMPv6ND_NA):
@@ -69,7 +78,6 @@ def process_packet(pkt):
 
         if src_mac not in mac_lookup:
             print(f"[DEBUG] MAC {src_mac} NO encontrada en mac_lookup")
-            print(f"[DEBUG] MACs disponibles: {list(mac_lookup.keys())}")
             return
         else:
             print(f"[DEBUG] MAC {src_mac} encontrada. Procesando binding...")
@@ -88,22 +96,20 @@ def process_packet(pkt):
                 "timestamp": timestamp
             }
 
-        if is_link_local:
+        if is_link_local and bindings[src_mac]["ipv6_link_local"] != ip_target:
             bindings[src_mac]["ipv6_link_local"] = ip_target
-        else:
+        elif not is_link_local and bindings[src_mac]["ipv6_global"] != ip_target:
             bindings[src_mac]["ipv6_global"] = ip_target
 
         bindings[src_mac]["timestamp"] = timestamp
-        print(f"[DEBUG] Binding actualizado para {src_mac}: {bindings[src_mac]}")
 
-        with open(OUTPUT_JSON, 'w') as f:
-            json.dump(list(bindings.values()), f, indent=2)
+        print(f"[DEBUG] Binding actualizado para {src_mac}: {bindings[src_mac]}")
+        save_bindings()
 
 # === Manejador de señales ===
 def signal_handler(sig, frame):
     print("\n[*] Captura detenida. Guardando archivo final...")
-    with open(OUTPUT_JSON, 'w') as f:
-        json.dump(list(bindings.values()), f, indent=2)
+    save_bindings()
     sys.exit(0)
 
 # === Main ===
