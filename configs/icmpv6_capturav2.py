@@ -66,30 +66,13 @@ def save_bindings():
     with open(OUTPUT_JSON, 'w') as f:
         json.dump(valid, f, indent=2)
 
-# === Validar si el NS tiene una dirección destino multicast que no coincide con el emisor ===
-def is_unsolicited_multicast_ns(pkt, src_mac, dst_mac):
-    if not pkt.haslayer(ICMPv6ND_NS):
-        return False
-    if not dst_mac.startswith("33:33:ff"):
-        return False
-    # Extraer últimos 3 bytes de cada MAC para comparación
-    src_suffix = src_mac.split(":")[-3:]
-    dst_suffix = dst_mac.split(":")[-3:]
-    return src_suffix != dst_suffix
-
 # === Procesar paquetes ICMPv6 NS y NA ===
 def process_packet(pkt):
     if pkt.haslayer(ICMPv6ND_NS) or pkt.haslayer(ICMPv6ND_NA):
         eth = pkt[Ether]
         ipv6 = pkt[IPv6]
         src_mac = eth.src.lower().replace("-", ":").strip()
-        dst_mac = eth.dst.lower().replace("-", ":").strip()
         src_ip = ipv6.src
-
-        # Evitar falsos bindings: NS con dst multicast no válido
-        if is_unsolicited_multicast_ns(pkt, src_mac, dst_mac):
-            print(f"[DEBUG] NS no válido para binding (multicast no coincidente): src_mac={src_mac}, dst_mac={dst_mac}")
-            return
 
         print(f"[DEBUG] Paquete ICMPv6 recibido de MAC: {src_mac}, IP: {src_ip}")
 
