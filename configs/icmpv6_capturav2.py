@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 from scapy.all import sniff, Ether, IPv6, ICMPv6ND_NS, ICMPv6ND_NA
-
 from datetime import datetime
 import json
 import os
@@ -58,42 +57,13 @@ def periodic_mac_reload():
         mac_lookup = updated
         time.sleep(RELOAD_INTERVAL)
 
-# === Filtro para detectar solo mensajes NS válidos de DAD ===
-def is_dad_ns(pkt):
-    if not pkt.haslayer(ICMPv6ND_NS):
-        return False
-
-    ipv6 = pkt[IPv6]
-    dst_ip = ipv6.dst
-    src_ip = ipv6.src
-
-    # Solo considerar si es multicast ff02::1:ffXX:XXXX
-    if not dst_ip.lower().startswith("ff02::1:ff"):
-        return False
-
-    # La IP origen debe ser :: (tentativa) o fe80::/10
-    if src_ip != "::" and not src_ip.lower().startswith("fe80::"):
-        return False
-
-    return True
-
-# === Procesar paquetes ICMPv6 NS válidos (DAD) ===
+# === Procesar paquetes ICMPv6 NS y NA ===
 def process_packet(pkt):
     if pkt.haslayer(ICMPv6ND_NS) or pkt.haslayer(ICMPv6ND_NA):
         eth = pkt[Ether]
         ipv6 = pkt[IPv6]
         src_mac = eth.src.lower().replace("-", ":").strip()
         src_ip = ipv6.src
-
-        ip_target = pkt[ICMPv6ND_NS].tgt if pkt.haslayer(ICMPv6ND_NS) else pkt[ICMPv6ND_NA].tgt
-        is_link_local = ip_target.startswith("fe80::")
-        timestamp = datetime.utcnow().isoformat()
-
-        # Evitar asociación si es un NS de DAD (src_ip == ::)
-        if pkt.haslayer(ICMPv6ND_NS) and src_ip == "::":
-            print(f"[DEBUG] NS DAD detectado: {src_mac} quiere usar {ip_target}")
-            # No asociamos dirección si src_ip es :: (DAD)
-            return
 
         print(f"[DEBUG] Paquete ICMPv6 recibido de MAC: {src_mac}, IP: {src_ip}")
 
@@ -105,6 +75,9 @@ def process_packet(pkt):
             print(f"[DEBUG] MAC {src_mac} encontrada. Procesando binding...")
 
         iface = mac_lookup[src_mac]
+        ip_target = pkt[ICMPv6ND_NS].tgt if pkt.haslayer(ICMPv6ND_NS) else pkt[ICMPv6ND_NA].tgt
+        is_link_local = ip_target.startswith("fe80::")
+        timestamp = datetime.utcnow().isoformat()
 
         if src_mac not in bindings:
             bindings[src_mac] = {
@@ -126,8 +99,6 @@ def process_packet(pkt):
         with open(OUTPUT_JSON, 'w') as f:
             json.dump(list(bindings.values()), f, indent=2)
 
-  
-   
 # === Manejador de señales ===
 def signal_handler(sig, frame):
     print("\n[*] Captura detenida. Guardando archivo final...")
