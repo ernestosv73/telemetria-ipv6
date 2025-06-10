@@ -66,6 +66,16 @@ def save_bindings():
     with open(OUTPUT_JSON, 'w') as f:
         json.dump(valid, f, indent=2)
 
+# === Validar si el NS tiene una dirección destino multicast que no coincide con el emisor ===
+def is_unsolicited_multicast_ns(pkt, src_mac, dst_mac):
+    if not pkt.haslayer(ICMPv6ND_NS):
+        return False
+    if not dst_mac.startswith("33:33:ff"):
+        return False
+    # Extraer últimos 3 bytes de cada MAC para comparación
+    src_suffix = src_mac.split(":")[-3:]
+    dst_suffix = dst_mac.split(":")[-3:]
+    return src_suffix != dst_suffix
 
 # === Procesar paquetes ICMPv6 NS y NA ===
 def process_packet(pkt):
@@ -76,22 +86,15 @@ def process_packet(pkt):
         dst_mac = eth.dst.lower().replace("-", ":").strip()
         src_ip = ipv6.src
 
-        # Validar mensajes NS que no son propios (ej. del router hacia el host)
-        if pkt.haslayer(ICMPv6ND_NS):
-            # Validar que dst_mac es del tipo solicited-node multicast
-            if dst_mac.startswith("33:33:ff"):
-                # Últimos 3 bytes de src_mac vs dst_mac
-                src_mac_suffix = src_mac.split(":")[-3:]
-                dst_mac_suffix = dst_mac.split(":")[-3:]
-                if src_mac_suffix != dst_mac_suffix:
-                    print(f"[DEBUG] NS no válido para binding: src_mac {src_mac} vs dst_mac {dst_mac}")
-                    return  # Salir sin procesar binding
+        # Evitar falsos bindings: NS con dst multicast no válido
+        if is_unsolicited_multicast_ns(pkt, src_mac, dst_mac):
+            print(f"[DEBUG] NS no válido para binding (multicast no coincidente): src_mac={src_mac}, dst_mac={dst_mac}")
+            return
 
         print(f"[DEBUG] Paquete ICMPv6 recibido de MAC: {src_mac}, IP: {src_ip}")
 
         if src_mac not in mac_lookup:
             print(f"[DEBUG] MAC {src_mac} NO encontrada en mac_lookup")
-            print(f"[DEBUG] MACs disponibles: {list(mac_lookup.keys())}")
             return
         else:
             print(f"[DEBUG] MAC {src_mac} encontrada. Procesando binding...")
@@ -110,16 +113,15 @@ def process_packet(pkt):
                 "timestamp": timestamp
             }
 
-        if is_link_local:
+        if is_link_local and bindings[src_mac]["ipv6_link_local"] != ip_target:
             bindings[src_mac]["ipv6_link_local"] = ip_target
-        else:
+        elif not is_link_local and bindings[src_mac]["ipv6_global"] != ip_target:
             bindings[src_mac]["ipv6_global"] = ip_target
 
         bindings[src_mac]["timestamp"] = timestamp
-        print(f"[DEBUG] Binding actualizado para {src_mac}: {bindings[src_mac]}")
 
-        with open(OUTPUT_JSON, 'w') as f:
-            json.dump(list(bindings.values()), f, indent=2)
+        print(f"[DEBUG] Binding actualizado para {src_mac}: {bindings[src_mac]}")
+        save_bindings()
 
 # === Manejador de señales ===
 def signal_handler(sig, frame):
