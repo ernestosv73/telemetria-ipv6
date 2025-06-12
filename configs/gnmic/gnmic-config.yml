@@ -15,12 +15,28 @@ subscriptions:
     stream-mode: on-change
     paths:
       - /network-instance[name=lanswitch]/bridge-table/mac-table/mac[address=*]
+    outputs:
+      - mac-output
+
+  srl-acl-ipv6:
+    stream-mode: once
+    paths:
+      - /acl/match-list/ipv6-prefix-list[name=permitidos]/prefix[ipv6-prefix=*]
+    outputs:
+      - acl-output
 
 outputs:
-  file_output:
+  mac-output:
     type: file
     filename: /data/mac_updates.json
     format: json
     split-events: true
-    
+  
+  acl-output:
+    type: file
+    filename: /data/acl_ipv6_updates.json
+    format: json
+    split-events: true
 
+
+    
