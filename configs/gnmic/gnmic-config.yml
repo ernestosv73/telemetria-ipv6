@@ -19,7 +19,7 @@ subscriptions:
       - mac-output
 
   srl-acl-ipv6:
-    stream-mode: once
+    mode: once
     paths:
       - /acl/match-list/ipv6-prefix-list[name=permitidos]/prefix[ipv6-prefix=*]
     outputs:
