@@ -11,11 +11,21 @@ with open(bindings_file, "r") as f:
 # Crear comandos CLI a partir de las direcciones IPv6
 commands = ["enter candidate"]
 
+# Llevar registro de interfaces únicas para aplicar acl
+interfaces_configuradas = set()
+
 for entry in bindings:
+    # Agregar direcciones a la prefix-list
     if "ipv6_link_local" in entry and entry["ipv6_link_local"]:
         commands.append(f"set acl match-list ipv6-prefix-list permitidos prefix {entry['ipv6_link_local']}/128")
     if "ipv6_global" in entry and entry["ipv6_global"]:
         commands.append(f"set acl match-list ipv6-prefix-list permitidos prefix {entry['ipv6_global']}/128")
+
+    # Aplicar ACL a la interfaz si aún no fue configurada
+    iface = entry.get("interface")
+    if iface and iface not in interfaces_configuradas:
+        commands.append(f"set acl interface {iface} input acl-filter icmpv6 type ipv6")
+        interfaces_configuradas.add(iface)
 
 commands.append("commit stay")
 
