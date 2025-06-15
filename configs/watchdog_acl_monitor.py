@@ -5,7 +5,7 @@ from collections import defaultdict
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
-BINDINGS_FILE = "mac_ipv6_bindings_dynamic.json"
+BINDINGS_FILE = "/data/mac_ipv6_bindings_dynamic.json"
 
 class BindingChangeHandler(FileSystemEventHandler):
     def on_modified(self, event):
