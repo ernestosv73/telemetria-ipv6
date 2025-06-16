@@ -103,7 +103,7 @@ topology:
         - configs/icmpv6_capturav2.py:/root/icmpv6_capturav2.py
         - configs/alerts-nd.py:/root/alerts-nd.py
         - configs/push_acl_bindings.py:/root/push_acl_bindings.py
-        - configs/watchdog_acl_monitor.py:/root/watchdog_acl_monitor.py
+        - configs/monitor_and_update_acls.py:/root/monitor_and_update_acls.py
       
       exec:
          - mkdir /data
