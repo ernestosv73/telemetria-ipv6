@@ -108,6 +108,7 @@ topology:
       exec:
          - mkdir /data
          - chmod +x /data
+         - touch /data/mac_ipv6_bindings_dynamic.json
          - chmod +x /root/python_scapy.sh
          - bash /root/python_scapy.sh
         #- mkdir /etc/periodic/1min
