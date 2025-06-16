@@ -6,7 +6,7 @@ from datetime import datetime
 
 JSON_FILE = "/data/mac_ipv6_bindings_dynamic.json"
 ES_URL = "http://172.20.20.9:9200"
-INTERVALO_SEGUNDOS = 5
+INTERVALO_SEGUNDOS = 30
 
 # Diccionario para rastrear hashes de entradas ya enviadas
 hashes_enviados = {}
