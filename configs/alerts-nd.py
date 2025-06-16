@@ -11,7 +11,7 @@ import time
 INTERFACE = "eth1"
 BINDINGS_FILE = "/data/mac_ipv6_bindings_dynamic.json"
 ES_URL = "http://172.20.20.9:9200"
-THRESHOLD_PER_IP = 10  # NS/NA por segundo por IP
+THRESHOLD_PER_IP = 100  # NS/NA por segundo por IP
 INDEX_NAME = f"ndp-alerts-{datetime.utcnow().strftime('%Y.%m.%d')}"
 BULK_URL = f"{ES_URL}/{INDEX_NAME}/_bulk"
 
