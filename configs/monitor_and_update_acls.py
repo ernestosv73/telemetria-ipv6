@@ -1,25 +1,22 @@
-import time
 import json
 import subprocess
 from collections import defaultdict
+import time
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
-BINDINGS_FILE = "/data/mac_ipv6_bindings_dynamic.json"
 
-class BindingChangeHandler(FileSystemEventHandler):
-    def on_modified(self, event):
-        if event.src_path.endswith(BINDINGS_FILE):
-            print(f"[+] Cambio detectado en {BINDINGS_FILE}, aplicando ACLs...")
-            apply_acls()
+# Ruta del archivo a monitorear
+bindings_file = "/data/mac_ipv6_bindings_dynamic.json"
 
-def apply_acls():
+# Función para generar los comandos ACL
+def generate_acl_commands():
     try:
-        with open(BINDINGS_FILE, "r") as f:
+        with open(bindings_file, "r") as f:
             bindings = json.load(f)
     except Exception as e:
-        print(f"[!] Error al leer el archivo: {e}")
-        return
+        print(f"Error leyendo el archivo JSON: {e}")
+        return []
 
     interfaces_ipv6 = defaultdict(list)
 
@@ -36,6 +33,7 @@ def apply_acls():
     for iface, ipv6_list in interfaces_ipv6.items():
         entry_id = 10
         for ipv6 in ipv6_list:
+            # Comando con next-header + source-ip en una sola línea
             commands.append(
                 f"set acl acl-filter {iface} type ipv6 entry {entry_id} match ipv6 next-header icmp6 source-ip prefix {ipv6}/128"
             )
@@ -44,18 +42,26 @@ def apply_acls():
             )
             entry_id += 1
 
+        # Entrada catch-all: bloquea todo el ICMPv6 no autorizado
         commands.append(
             f"set acl acl-filter {iface} type ipv6 entry 100 match ipv6 next-header icmp6"
         )
         commands.append(
             f"set acl acl-filter {iface} type ipv6 entry 100 action drop"
         )
+
+        # Aplicar ACL a la interfaz
         commands.append(
             f"set acl interface {iface} input acl-filter {iface} type ipv6"
         )
 
     commands.append("commit stay")
 
+    return commands
+
+
+# Función para enviar los comandos via curl
+def send_to_srlinux(commands):
     payload = {
         "jsonrpc": "2.0",
         "id": 1,
@@ -74,16 +80,38 @@ def apply_acls():
         "-d", json_payload
     ]
 
-    print("[*] Enviando comandos al SR Linux...")
     result = subprocess.run(curl_command, capture_output=True, text=True)
     print("Respuesta del servidor:")
     print(result.stdout)
 
-def start_monitor():
-    print(f"[*] Iniciando monitor sobre {BINDINGS_FILE}...")
-    event_handler = BindingChangeHandler()
+
+# Clase para manejar eventos del sistema de archivos
+class FileChangeHandler(FileSystemEventHandler):
+    def __init__(self, file_path):
+        self.file_path = file_path
+        self.last_modified = 0
+
+    def on_modified(self, event):
+        if event.src_path == self.file_path:
+            current_time = time.time()
+            # Evita disparos múltiples muy seguidos
+            if current_time - self.last_modified > 1:
+                print(f"[INFO] Cambios detectados en {self.file_path}. Actualizando ACLs...")
+                commands = generate_acl_commands()
+                if commands:
+                    send_to_srlinux(commands)
+                self.last_modified = current_time
+
+
+if __name__ == "__main__":
+    print("[INFO] Iniciando monitor de cambios...")
+
+    dir_to_watch = "/data/"  # Directorio donde está el archivo
+    file_to_watch = "/data/mac_ipv6_bindings_dynamic.json"
+
+    event_handler = FileChangeHandler(file_to_watch)
     observer = Observer()
-    observer.schedule(event_handler, ".", recursive=False)
+    observer.schedule(event_handler, path=dir_to_watch, recursive=False)
     observer.start()
 
     try:
@@ -91,7 +119,4 @@ def start_monitor():
             time.sleep(1)
     except KeyboardInterrupt:
         observer.stop()
-    observer.join()
-
-if __name__ == "__main__":
-    start_monitor()
+        observer.join()
