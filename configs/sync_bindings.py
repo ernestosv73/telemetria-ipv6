@@ -106,7 +106,9 @@ def build_and_send_acls(bindings):
         commands.append(f"set acl acl-filter {iface} type ipv6 entry 100 match ipv6 next-header icmp6")
         commands.append(f"set acl acl-filter {iface} type ipv6 entry 100 action log true drop")
         commands.append(f"set acl interface {iface} input acl-filter {iface} type ipv6")
-
+        commands.append(f"set acl acl-filter {iface} type ipv6 statistics-per-entry true")
+        commands.append(f"set acl acl-filter {iface} type ipv6 subinterface-specific input-only")
+       
     commands.append("commit stay")
 
     payload = {
