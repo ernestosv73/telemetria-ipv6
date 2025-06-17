@@ -104,7 +104,7 @@ def build_and_send_acls(bindings):
             entry_id += 1
 
         commands.append(f"set acl acl-filter {iface} type ipv6 entry 100 match ipv6 next-header icmp6")
-        commands.append(f"set acl acl-filter {iface} type ipv6 entry 100 action drop")
+        commands.append(f"set acl acl-filter {iface} type ipv6 entry 100 action log true drop")
         commands.append(f"set acl interface {iface} input acl-filter {iface} type ipv6")
 
     commands.append("commit stay")
