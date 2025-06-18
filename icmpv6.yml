@@ -99,6 +99,7 @@ topology:
       binds:
         - configs/python_scapy.sh:/root/python_scapy.sh
         - configs/gnmic/gnmic-config.yml:/gnmic-config.yml:ro
+        - configs/gnmic/gnmic-config-acl.yml:/gnmic-config-acl.yml:ro
         - configs/icmpv6_capturav2.py:/root/icmpv6_capturav2.py
         - configs/alerts-nd.py:/root/alerts-nd.py
         - configs/supervisord.conf:/root/supervisord.conf
