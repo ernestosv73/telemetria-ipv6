@@ -54,13 +54,13 @@ topology:
       ports:
         - 5601:5601/tcp
       
-    #suricata:
-        #kind: linux
-        #mgmt-ipv4: 172.20.20.10 
-        #image: docker.io/esanchezv/suricatafilebeatv1:v1
-        #binds:
+    suricata:
+        kind: linux
+        mgmt-ipv4: 172.20.20.10 
+        image: docker.io/esanchezv/suricatafilebeatv1:v1
+        binds:
         #- configs/local.rules:/var/lib/suricata/rules/local.rules
-        #- configs/filebeat.yml:/etc/filebeat/filebeat.yml
+         - configs/filebeat.yml:/etc/filebeat/filebeat.yml
         #- configs/rsyslog.conf:/etc/rsyslog.conf
         #exec:
         #- ip -6 route del default dev eth0
