@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 
 input_file = "/data/acl_statistics.json"
-output_file = "acl_matched_packets_summary.json"
+output_file = "/data/acl_matched_packets_summary.json"
 
 results = []
 
