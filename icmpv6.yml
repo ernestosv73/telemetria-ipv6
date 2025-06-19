@@ -105,6 +105,7 @@ topology:
         - configs/supervisord.conf:/root/supervisord.conf
         - configs/sync_bindings.py:/root/sync_bindings.py
         - configs/parse_acl_stats.py:/root/parse_acl_stats.py
+        - configs/parse-acls-statsv2.py:/root/parse-acls-statsv2.py
       
       exec:
          - mkdir /data
