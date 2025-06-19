@@ -19,7 +19,7 @@ hashes_enviados = set()
 # Esperar que el archivo esté disponible
 def esperar_archivo_inicial():
     print(f"[*] Esperando a que exista {INPUT_FILE} ...")
-    for i in range(TIEMPO_ESPERA_INICIAL):
+    for _ in range(TIEMPO_ESPERA_INICIAL):
         if Path(INPUT_FILE).exists() and Path(INPUT_FILE).stat().st_size > 0:
             print(f"[✔] Archivo detectado. Comenzando procesamiento.")
             return
@@ -50,20 +50,21 @@ def procesar_estadisticas():
                                 matched_packets_str = update["values"]["srl_nokia-acl:acl/interface/input/acl-filter/entry/statistics"]["matched-packets"]
                                 matched_packets = int(matched_packets_str)
 
-                                entry = {
-                                    "timestamp": timestamp,
-                                    "device": device,
-                                    "interface": interface,
-                                    "matched_packets": matched_packets
-                                }
+                                if matched_packets > 0:
+                                    entry = {
+                                        "timestamp": timestamp,
+                                        "device": device,
+                                        "interface": interface,
+                                        "matched_packets": matched_packets
+                                    }
 
-                                h = hash_entrada(entry)
-                                if h not in hashes_enviados:
-                                    hashes_enviados.add(h)
-                                    nuevos.append(entry)
+                                    h = hash_entrada(entry)
+                                    if h not in hashes_enviados:
+                                        hashes_enviados.add(h)
+                                        nuevos.append(entry)
 
-                except json.JSONDecodeError:
-                    continue  # Ignorar líneas inválidas como {"sync-response":true}
+                except (json.JSONDecodeError, KeyError, ValueError):
+                    continue  # Ignorar líneas inválidas
     except FileNotFoundError:
         print(f"[!] Archivo {INPUT_FILE} no encontrado.")
     return nuevos
@@ -107,7 +108,7 @@ def main():
             guardar_resultado(nuevos)
             enviar_bulk_elasticsearch(nuevos)
         else:
-            print("[=] No se detectaron nuevas estadísticas ACL.")
+            print("[=] No se detectaron nuevas estadísticas ACL con matched-packets > 0.")
         time.sleep(INTERVALO_SEGUNDOS)
 
 if __name__ == "__main__":
