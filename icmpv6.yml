@@ -104,6 +104,7 @@ topology:
         - configs/alerts-nd.py:/root/alerts-nd.py
         - configs/supervisord.conf:/root/supervisord.conf
         - configs/sync_bindings.py:/root/sync_bindings.py
+        - configs/parse_acl_stats.py:/root/parse_acl_stats.py
       
       exec:
          - mkdir /data
