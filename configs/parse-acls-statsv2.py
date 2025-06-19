@@ -12,7 +12,20 @@ INPUT_FILE = "/data/acl_statistics.json"
 OUTPUT_FILE = "/data/acl_matched_packets_summary.json"
 ES_URL = "http://172.20.20.9:9200"
 INTERVALO_SEGUNDOS = 30  # Intervalo entre ejecuciones
+TIEMPO_ESPERA_INICIAL = 60  # Tiempo máximo de espera para que aparezca el archivo
+
 hashes_enviados = set()
+
+# Esperar que el archivo esté disponible
+def esperar_archivo_inicial():
+    print(f"[*] Esperando a que exista {INPUT_FILE} ...")
+    for i in range(TIEMPO_ESPERA_INICIAL):
+        if Path(INPUT_FILE).exists() and Path(INPUT_FILE).stat().st_size > 0:
+            print(f"[✔] Archivo detectado. Comenzando procesamiento.")
+            return
+        time.sleep(1)
+    print(f"[✖] Tiempo de espera agotado. {INPUT_FILE} no disponible.")
+    exit(1)
 
 # Función para generar hash único por entrada
 def hash_entrada(entry):
@@ -21,39 +34,38 @@ def hash_entrada(entry):
 # Procesar el archivo crudo de estadísticas ACL
 def procesar_estadisticas():
     nuevos = []
-    if not Path(INPUT_FILE).exists():
+    try:
+        with open(INPUT_FILE, "r") as infile:
+            for line in infile:
+                try:
+                    data = json.loads(line)
+                    if "updates" in data:
+                        device = data.get("source", "desconocido")
+                        timestamp = data.get("time")
+
+                        for update in data["updates"]:
+                            path = update.get("Path", "")
+                            if "interface-id=" in path:
+                                interface = path.split("interface-id=")[1].split("]")[0]
+                                matched_packets_str = update["values"]["srl_nokia-acl:acl/interface/input/acl-filter/entry/statistics"]["matched-packets"]
+                                matched_packets = int(matched_packets_str)
+
+                                entry = {
+                                    "timestamp": timestamp,
+                                    "device": device,
+                                    "interface": interface,
+                                    "matched_packets": matched_packets
+                                }
+
+                                h = hash_entrada(entry)
+                                if h not in hashes_enviados:
+                                    hashes_enviados.add(h)
+                                    nuevos.append(entry)
+
+                except json.JSONDecodeError:
+                    continue  # Ignorar líneas inválidas como {"sync-response":true}
+    except FileNotFoundError:
         print(f"[!] Archivo {INPUT_FILE} no encontrado.")
-        return []
-
-    with open(INPUT_FILE, "r") as infile:
-        for line in infile:
-            try:
-                data = json.loads(line)
-                if "updates" in data:
-                    device = data.get("source", "desconocido")
-                    timestamp = data.get("time")
-
-                    for update in data["updates"]:
-                        path = update.get("Path", "")
-                        if "interface-id=" in path:
-                            interface = path.split("interface-id=")[1].split("]")[0]
-                            matched_packets_str = update["values"]["srl_nokia-acl:acl/interface/input/acl-filter/entry/statistics"]["matched-packets"]
-                            matched_packets = int(matched_packets_str)
-
-                            entry = {
-                                "timestamp": timestamp,
-                                "device": device,
-                                "interface": interface,
-                                "matched_packets": matched_packets
-                            }
-
-                            h = hash_entrada(entry)
-                            if h not in hashes_enviados:
-                                hashes_enviados.add(h)
-                                nuevos.append(entry)
-
-            except json.JSONDecodeError:
-                continue  # Ignorar líneas no válidas como {"sync-response":true}
     return nuevos
 
 # Guardar en archivo de resumen
@@ -87,6 +99,7 @@ def enviar_bulk_elasticsearch(entries):
 
 # Bucle principal
 def main():
+    esperar_archivo_inicial()
     print(f"[*] Iniciando monitoreo ACL + Elasticsearch cada {INTERVALO_SEGUNDOS}s...")
     while True:
         nuevos = procesar_estadisticas()
@@ -95,7 +108,6 @@ def main():
             enviar_bulk_elasticsearch(nuevos)
         else:
             print("[=] No se detectaron nuevas estadísticas ACL.")
-
         time.sleep(INTERVALO_SEGUNDOS)
 
 if __name__ == "__main__":
