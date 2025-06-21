@@ -10,13 +10,8 @@ topology:
       kind: nokia_srlinux
       image: ghcr.io/nokia/srlinux:24.10.1
       type: ixrd3
-      #binds:
-        #- configs/icmpv6_captura.py:/root/icmpv6_captura.py
       startup-config: switch/config.json
-      #exec:
-       #- chmod +x /root/icmpv6_captura.py
-       #- bash /root/nd_snooping_multi.sh
-      
+            
      
     # Nokia SRL Linux Router
     srlrouter:
@@ -91,8 +86,8 @@ topology:
       image: docker.io/esanchezv/kaliipv6:latest
       #exec:
       #- ip -6 route del default dev eth0  
-
-    PC3:
+      
+    gNMIc:
       kind: linux
       image: esanchezv/hellt-gnmic:latest
       #image: ghcr.io/openconfig/gnmic:0.39.1
@@ -130,7 +125,7 @@ topology:
       mtu: 1500
     - endpoints: ["PC2:eth1", "srlswitch:e1-3"]
       mtu: 1500
-    - endpoints: ["PC3:eth1", "srlswitch:e1-4"]
+    - endpoints: ["gNMIc:eth1", "srlswitch:e1-4"]
       mtu: 1500
     - endpoints: ["PC4:eth1", "srlswitch:e1-5"]
       mtu: 1500  
