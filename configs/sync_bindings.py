@@ -93,7 +93,7 @@ def build_and_send_acls(bindings):
 
     commands = ["enter candidate"]
     for iface, ipv6_list in interfaces_ipv6.items():
-        entry_id = 30
+        entry_id = 10
         for ipv6 in ipv6_list:
             commands.append(
                 f"set acl acl-filter {iface} type ipv6 entry {entry_id} match ipv6 next-header icmp6 source-ip prefix {ipv6}/128"
