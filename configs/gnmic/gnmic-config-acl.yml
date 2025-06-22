@@ -16,8 +16,8 @@ subscriptions:
     sample-interval: 20s
     suppress-redundant: true
     paths:
-      - /acl/acl-filter[name=*][type=*]/entry[sequence-id=100]/description
-      - /acl/interface[interface-id=*]/input/acl-filter[name=*][type=*]/entry[sequence-id=100]/statistics/matched-packets
+      - /acl/acl-filter[name=*][type=ipv6]/entry[sequence-id=100]/description
+      - /acl/interface[interface-id=*]/input/acl-filter[name=*][type=ipv6]/entry[sequence-id=100]/statistics/matched-packets
 
 outputs:
   file_output:
