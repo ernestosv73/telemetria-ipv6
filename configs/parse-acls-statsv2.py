@@ -11,27 +11,35 @@ from pathlib import Path
 INPUT_FILE = "/data/acl_statistics.json"
 OUTPUT_FILE = "/data/acl_matched_packets_summary.json"
 ES_URL = "http://172.20.20.9:9200"
-INTERVALO_SEGUNDOS = 30  # Intervalo entre ejecuciones
-TIEMPO_ESPERA_INICIAL = 60  # Tiempo máximo de espera para que aparezca el archivo
+INTERVALO_SEGUNDOS = 30
+TIEMPO_ESPERA_INICIAL = 60
 
 hashes_enviados = set()
+descripcion_acl = {}
 
-# Esperar que el archivo esté disponible
+# Esperar a que aparezca el archivo
 def esperar_archivo_inicial():
     print(f"[*] Esperando a que exista {INPUT_FILE} ...")
     for _ in range(TIEMPO_ESPERA_INICIAL):
         if Path(INPUT_FILE).exists() and Path(INPUT_FILE).stat().st_size > 0:
-            print(f"[✔] Archivo detectado. Comenzando procesamiento.")
+            print(f"[✔] Archivo detectado.")
             return
         time.sleep(1)
-    print(f"[✖] Tiempo de espera agotado. {INPUT_FILE} no disponible.")
+    print(f"[✖] Tiempo de espera agotado.")
     exit(1)
 
-# Función para generar hash único por entrada
+# Generar hash único
 def hash_entrada(entry):
     return hashlib.sha256(json.dumps(entry, sort_keys=True).encode()).hexdigest()
 
-# Procesar el archivo crudo de estadísticas ACL
+# Extraer sequence-id desde el path
+def extraer_sequence_id(path):
+    try:
+        return path.split("sequence-id=")[1].split("]")[0]
+    except IndexError:
+        return "unknown"
+
+# Procesar estadísticas ACL y descripciones
 def procesar_estadisticas():
     nuevos = []
     try:
@@ -39,49 +47,61 @@ def procesar_estadisticas():
             for line in infile:
                 try:
                     data = json.loads(line)
-                    if "updates" in data:
-                        device = data.get("source", "desconocido")
-                        timestamp = data.get("time")
+                    if "updates" not in data:
+                        continue
 
-                        for update in data["updates"]:
-                            path = update.get("Path", "")
-                            if "interface-id=" in path:
-                                interface = path.split("interface-id=")[1].split("]")[0]
-                                matched_packets_str = update["values"]["srl_nokia-acl:acl/interface/input/acl-filter/entry/statistics"]["matched-packets"]
-                                matched_packets = int(matched_packets_str)
+                    timestamp = data.get("time")
+                    device = data.get("source", "desconocido")
 
-                                if matched_packets > 0:
-                                    entry = {
-                                        "timestamp": timestamp,
-                                        "device": device,
-                                        "interface": interface,
-                                        "matched_packets": matched_packets
-                                    }
+                    for update in data["updates"]:
+                        path = update.get("Path", "")
 
-                                    h = hash_entrada(entry)
-                                    if h not in hashes_enviados:
-                                        hashes_enviados.add(h)
-                                        nuevos.append(entry)
+                        # Descripciones de ACL
+                        if "/acl-filter" in path and "/entry" in path and "/description" not in path and "statistics" not in path:
+                            seq_id = extraer_sequence_id(path)
+                            desc = update["values"]["srl_nokia-acl:acl/acl-filter/entry"].get("description", "")
+                            descripcion_acl[seq_id] = desc
 
-                except (json.JSONDecodeError, KeyError, ValueError):
-                    continue  # Ignorar líneas inválidas
+                        # Estadísticas ACL
+                        if "interface-id=" in path and "statistics" in path:
+                            interface = path.split("interface-id=")[1].split("]")[0]
+                            seq_id = extraer_sequence_id(path)
+                            matched_packets = int(
+                                update["values"]["srl_nokia-acl:acl/interface/input/acl-filter/entry/statistics"]["matched-packets"]
+                            )
+
+                            if matched_packets > 0:
+                                entry = {
+                                    "timestamp": timestamp,
+                                    "device": device,
+                                    "interface": interface,
+                                    "sequence_id": seq_id,
+                                    "matched_packets": matched_packets,
+                                    "description": descripcion_acl.get(seq_id, "sin descripción")
+                                }
+
+                                h = hash_entrada(entry)
+                                if h not in hashes_enviados:
+                                    hashes_enviados.add(h)
+                                    nuevos.append(entry)
+                except Exception:
+                    continue
     except FileNotFoundError:
         print(f"[!] Archivo {INPUT_FILE} no encontrado.")
     return nuevos
 
-# Guardar en archivo de resumen
+# Guardar archivo JSON
 def guardar_resultado(entries):
-    with open(OUTPUT_FILE, "w") as outfile:
-        json.dump(entries, outfile, indent=2)
-    print(f"[✔] Archivo actualizado: {OUTPUT_FILE} con {len(entries)} entradas.")
+    with open(OUTPUT_FILE, "w") as f:
+        json.dump(entries, f, indent=2)
+    print(f"[✔] {OUTPUT_FILE} actualizado con {len(entries)} entradas.")
 
 # Enviar a Elasticsearch
 def enviar_bulk_elasticsearch(entries):
     if not entries:
         print("[=] Sin entradas nuevas para enviar a Elasticsearch.")
         return
-    fecha = datetime.utcnow().strftime("%Y.%m.%d")
-    index_name = f"acl-stats-{fecha}"
+    index_name = f"acl-stats-{datetime.utcnow().strftime('%Y.%m.%d')}"
     bulk_url = f"{ES_URL}/{index_name}/_bulk"
 
     bulk_data = ""
@@ -89,8 +109,7 @@ def enviar_bulk_elasticsearch(entries):
         bulk_data += json.dumps({"index": {}}) + "\n"
         bulk_data += json.dumps(entry) + "\n"
 
-    headers = {"Content-Type": "application/json"}
-    response = requests.post(bulk_url, headers=headers, data=bulk_data)
+    response = requests.post(bulk_url, headers={"Content-Type": "application/json"}, data=bulk_data)
 
     if response.status_code == 200:
         print(f"[+] {len(entries)} entradas enviadas a Elasticsearch ({index_name})")
@@ -98,7 +117,7 @@ def enviar_bulk_elasticsearch(entries):
         print(f"[!] Error al enviar: {response.status_code}")
         print(response.text)
 
-# Bucle principal
+# Loop principal
 def main():
     esperar_archivo_inicial()
     print(f"[*] Iniciando monitoreo ACL + Elasticsearch cada {INTERVALO_SEGUNDOS}s...")
