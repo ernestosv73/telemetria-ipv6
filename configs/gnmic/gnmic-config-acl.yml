@@ -12,9 +12,7 @@ targets:
 subscriptions:
   srl-acl-statistics:
     mode: stream
-    stream-mode: sample
-    sample-interval: 20s
-    suppress-redundant: true
+    stream-mode: on-change
     paths:
       - /acl/acl-filter[name=*][type=ipv6]/entry[sequence-id=5]/description
       - /acl/acl-filter[name=*][type=ipv6]/entry[sequence-id=6]/description
