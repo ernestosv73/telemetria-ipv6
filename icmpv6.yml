@@ -10,7 +10,7 @@ topology:
       kind: nokia_srlinux
       image: ghcr.io/nokia/srlinux:24.10.1
       type: ixrd3
-      startup-config: switch/srlswitch.cfg
+      startup-config: switch/config.json
             
      
     # Nokia SRL Linux Router
