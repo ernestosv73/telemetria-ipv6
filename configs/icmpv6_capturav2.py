@@ -13,7 +13,7 @@ import time
 INTERFACE = "eth1"
 OUTPUT_JSON = "/data/mac_ipv6_bindings_dynamic.json"
 MAC_UPDATES_FILE = "/data/mac_updates.json"
-RELOAD_INTERVAL = 10  # segundos
+RELOAD_INTERVAL = 5  # segundos
 
 bindings = {}
 mac_lookup = {}
