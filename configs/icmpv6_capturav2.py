@@ -13,12 +13,12 @@ import time
 INTERFACE = "eth1"
 OUTPUT_JSON = "/data/mac_ipv6_bindings_dynamic.json"
 MAC_UPDATES_FILE = "/data/mac_updates.json"
-RELOAD_INTERVAL = 45  # segundos
+RELOAD_INTERVAL = 30  # segundos
 
 bindings = {}
 mac_lookup = {}
 
-# === Cargar tabla MAC desde archivo ===
+# === Cargar tabla MAC desde archivo (solo 'updates') ===
 def load_mac_table_from_file(file_path):
     entries = {}
     try:
@@ -36,12 +36,7 @@ def load_mac_table_from_file(file_path):
                                     "srl_nokia-network-instance:network-instance/bridge-table/srl_nokia-bridge-table-mac-table:mac-table/mac"
                                 ]["destination"]
                                 entries[mac] = destination
-                    elif "deletes" in data:
-                        for deleted_path in data["deletes"]:
-                            if "mac[address=" in deleted_path:
-                                mac = deleted_path.split("mac[address=")[1].split("]")[0]
-                                mac = mac.lower().replace("-", ":").strip()
-                                entries.pop(mac, None)
+                    # Ignorar completamente 'deletes'
                 except json.JSONDecodeError:
                     continue
     except Exception as e:
@@ -75,16 +70,13 @@ def process_packet(pkt):
         dst_mac = eth.dst.lower().replace("-", ":").strip()
         src_ip = ipv6.src
 
-        # Validar mensajes NS que no son propios (ej. del router hacia el host)
         if pkt.haslayer(ICMPv6ND_NS):
-            # Validar que dst_mac es del tipo solicited-node multicast
             if dst_mac.startswith("33:33:ff"):
-                # Últimos 3 bytes de src_mac vs dst_mac
                 src_mac_suffix = src_mac.split(":")[-3:]
                 dst_mac_suffix = dst_mac.split(":")[-3:]
                 if src_mac_suffix != dst_mac_suffix:
                     print(f"[DEBUG] NS no válido para binding: src_mac {src_mac} vs dst_mac {dst_mac}")
-                    return  # Salir sin procesar binding
+                    return
 
         print(f"[DEBUG] Paquete ICMPv6 recibido de MAC: {src_mac}, IP: {src_ip}")
 
@@ -119,7 +111,6 @@ def process_packet(pkt):
 
         with open(OUTPUT_JSON, 'w') as f:
             json.dump(list(bindings.values()), f, indent=2)
-     
 
 # === Manejador de señales ===
 def signal_handler(sig, frame):
