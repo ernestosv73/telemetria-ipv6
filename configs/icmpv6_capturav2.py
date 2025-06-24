@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from scapy.all import sniff, Ether, IPv6, ICMPv6ND_NS, ICMPv6ND_NA
+from scapy.all import sniff, Ether, IPv6, ICMPv6ND_NS, ICMPv6ND_NA, ICMPv6ND_RS
 from datetime import datetime
 import json
 import os
@@ -36,7 +36,6 @@ def load_mac_table_from_file(file_path):
                                     "srl_nokia-network-instance:network-instance/bridge-table/srl_nokia-bridge-table-mac-table:mac-table/mac"
                                 ]["destination"]
                                 entries[mac] = destination
-                    # Ignorar completamente 'deletes'
                 except json.JSONDecodeError:
                     continue
     except Exception as e:
@@ -61,54 +60,53 @@ def save_bindings():
     with open(OUTPUT_JSON, 'w') as f:
         json.dump(valid, f, indent=2)
 
-# === Procesar paquetes ICMPv6 NS y NA ===
+# === Procesar paquetes ICMPv6 ===
 def process_packet(pkt):
-    if pkt.haslayer(ICMPv6ND_NS) or pkt.haslayer(ICMPv6ND_NA):
-        eth = pkt[Ether]
-        ipv6 = pkt[IPv6]
-        src_mac = eth.src.lower().replace("-", ":").strip()
-        dst_mac = eth.dst.lower().replace("-", ":").strip()
-        src_ip = ipv6.src
+    if not pkt.haslayer(IPv6) or not pkt.haslayer(Ether):
+        return
 
-        if pkt.haslayer(ICMPv6ND_NS):
-            if dst_mac.startswith("33:33:ff"):
-                src_mac_suffix = src_mac.split(":")[-3:]
-                dst_mac_suffix = dst_mac.split(":")[-3:]
-                if src_mac_suffix != dst_mac_suffix:
-                    print(f"[DEBUG] NS no válido para binding: src_mac {src_mac} vs dst_mac {dst_mac}")
-                    return
+    eth = pkt[Ether]
+    ipv6 = pkt[IPv6]
+    src_mac = eth.src.lower().replace("-", ":").strip()
+    dst_mac = eth.dst.lower().replace("-", ":").strip()
+    src_ip = ipv6.src
+    timestamp = datetime.utcnow().isoformat()
 
-        print(f"[DEBUG] Paquete ICMPv6 recibido de MAC: {src_mac}, IP: {src_ip}")
+    if src_mac not in mac_lookup:
+        print(f"[DEBUG] MAC {src_mac} NO encontrada en mac_lookup")
+        return
 
-        if src_mac not in mac_lookup:
-            print(f"[DEBUG] MAC {src_mac} NO encontrada en mac_lookup")
-            print(f"[DEBUG] MACs disponibles: {list(mac_lookup.keys())}")
-            return
-        else:
-            print(f"[DEBUG] MAC {src_mac} encontrada. Procesando binding...")
+    iface = mac_lookup[src_mac]
 
-        iface = mac_lookup[src_mac]
-        ip_target = pkt[ICMPv6ND_NS].tgt if pkt.haslayer(ICMPv6ND_NS) else pkt[ICMPv6ND_NA].tgt
-        is_link_local = ip_target.startswith("fe80::")
-        timestamp = datetime.utcnow().isoformat()
+    if src_mac not in bindings:
+        bindings[src_mac] = {
+            "mac": src_mac,
+            "interface": iface,
+            "ipv6_link_local": None,
+            "ipv6_global": None,
+            "timestamp": timestamp
+        }
 
-        if src_mac not in bindings:
-            bindings[src_mac] = {
-                "mac": src_mac,
-                "interface": iface,
-                "ipv6_link_local": None,
-                "ipv6_global": None,
-                "timestamp": timestamp
-            }
+    updated = False
 
-        if is_link_local:
-            bindings[src_mac]["ipv6_link_local"] = ip_target
-        else:
+    # === Mensaje RS: usar source address como link-local ===
+    if pkt.haslayer(ICMPv6ND_RS):
+        if src_ip.startswith("fe80::"):
+            print(f"[DEBUG] RS → Link-local detectada para {src_mac}: {src_ip}")
+            bindings[src_mac]["ipv6_link_local"] = src_ip
+            updated = True
+
+    # === Mensaje NS: usar target como dirección global ===
+    if pkt.haslayer(ICMPv6ND_NS):
+        ip_target = pkt[ICMPv6ND_NS].tgt
+        if not ip_target.startswith("fe80::"):
+            print(f"[DEBUG] NS → Global detectada para {src_mac}: {ip_target}")
             bindings[src_mac]["ipv6_global"] = ip_target
+            updated = True
 
+    if updated:
         bindings[src_mac]["timestamp"] = timestamp
         print(f"[DEBUG] Binding actualizado para {src_mac}: {bindings[src_mac]}")
-
         with open(OUTPUT_JSON, 'w') as f:
             json.dump(list(bindings.values()), f, indent=2)
 
