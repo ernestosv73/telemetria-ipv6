@@ -29,3 +29,7 @@ outputs:
     filename: /data/acl_statistics.json
     format: json
     split-events: true
+
+  prom-output:
+    type: prometheus
+    listen: :9273  
