@@ -27,9 +27,9 @@ topology:
       kind: linux
       mgmt-ipv4: 172.80.80.42
       image: quay.io/prometheus/prometheus:v2.54.1
-      #binds:
-        #- configs/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      #cmd: --config.file=/etc/prometheus/prometheus.yml
+      binds:
+        - configs/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      cmd: --config.file=/etc/prometheus/prometheus.yml
       ports:
         - 9090:9090
 
