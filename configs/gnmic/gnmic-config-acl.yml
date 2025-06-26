@@ -2,7 +2,6 @@ username: admin
 password: NokiaSrl1!
 insecure: false
 skip-verify: true
-encoding: json_ietf
 timeout: 10s
 
 targets:
@@ -24,12 +23,7 @@ subscriptions:
       - /acl/interface[interface-id=*]/input/acl-filter[name=*][type=ipv6]/entry[sequence-id=100]/statistics/matched-packets
 
 outputs:
-  file_output:
-    type: file
-    filename: /data/acl_statistics.json
-    format: json
-    split-events: true
-
+  
   prom-output:
     type: prometheus
     listen: :9273  
