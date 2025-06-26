@@ -29,11 +29,12 @@ subscriptions:
   srl-acl-statistics:
     mode: stream
     stream-mode: sample
+    sample-interval: 5s
     paths:
-      - /acl/interface[interface-id=*]/input/acl-filter[name=*][type=ipv6]/entry[sequence-id=5]/statistics/
-      - /acl/interface[interface-id=*]/input/acl-filter[name=*][type=ipv6]/entry[sequence-id=6]/statistics/
-      - /acl/interface[interface-id=*]/input/acl-filter[name=*][type=ipv6]/entry[sequence-id=7]/statistics/
-      - /acl/interface[interface-id=*]/input/acl-filter[name=*][type=ipv6]/entry[sequence-id=100]/statistics/
+      - /acl/interface[interface-id=ethernet-1/*]/input/acl-filter[name=*][type=ipv6]/entry[sequence-id=5]/statistics
+      - /acl/interface[interface-id=ethernet-1/*]/input/acl-filter[name=*][type=ipv6]/entry[sequence-id=6]/statistics
+      - /acl/interface[interface-id=ethernet-1/*]/input/acl-filter[name=*][type=ipv6]/entry[sequence-id=7]/statistics
+      - /acl/interface[interface-id=ethernet-1/*]/input/acl-filter[name=*][type=ipv6]/entry[sequence-id=100]/statistics
 
 outputs:
   
