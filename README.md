@@ -1,4 +1,4 @@
-# Laboratorio Seguridad en IPv6 con Containerlab
+# Laboratorio Telemetría IPv6 con Containerlab
 ---
 <div align=center markdown>
 <a href="https://codespaces.new/ernestosv73/nokia24?quickstart=1">
