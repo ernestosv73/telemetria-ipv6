@@ -17,14 +17,23 @@ subscriptions:
       - /platform/control[slot=*]/cpu[index=all]/total
       - /platform/control[slot=*]/memory
   
+  srl-if-stats:
+    mode: stream
+    stream-mode: sample
+    sample-interval: 5s
+    paths:
+      - /interface[name=ethernet-1/*]/oper-state
+      - /interface[name=ethernet-1/*]/statistics
+      - /interface[name=ethernet-1/*]/traffic-rate
+  
   srl-acl-statistics:
     mode: stream
     stream-mode: sample
     paths:
-      - /acl/interface[interface-id=*]/input/acl-filter[name=*][type=ipv6]/entry[sequence-id=5]/statistics/matched-packets
-      - /acl/interface[interface-id=*]/input/acl-filter[name=*][type=ipv6]/entry[sequence-id=6]/statistics/matched-packets
-      - /acl/interface[interface-id=*]/input/acl-filter[name=*][type=ipv6]/entry[sequence-id=7]/statistics/matched-packets
-      - /acl/interface[interface-id=*]/input/acl-filter[name=*][type=ipv6]/entry[sequence-id=100]/statistics/matched-packets
+      - /acl/interface[interface-id=*]/input/acl-filter[name=*][type=ipv6]/entry[sequence-id=5]/statistics/
+      - /acl/interface[interface-id=*]/input/acl-filter[name=*][type=ipv6]/entry[sequence-id=6]/statistics/
+      - /acl/interface[interface-id=*]/input/acl-filter[name=*][type=ipv6]/entry[sequence-id=7]/statistics/
+      - /acl/interface[interface-id=*]/input/acl-filter[name=*][type=ipv6]/entry[sequence-id=100]/statistics/
 
 outputs:
   
