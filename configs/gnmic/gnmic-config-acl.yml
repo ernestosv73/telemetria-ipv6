@@ -28,7 +28,7 @@ subscriptions:
   
   srl-acl-statistics:
     mode: stream
-    stream-mode: sample
+    stream-mode: on-change
     sample-interval: 5s
     paths:
       - /acl/interface[interface-id=ethernet-1/*]/input/acl-filter[name=*][type=ipv6]/entry[sequence-id=5]/statistics
