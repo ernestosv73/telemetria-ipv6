@@ -9,9 +9,17 @@ targets:
     address: srlswitch:57400
 
 subscriptions:
+  srl-system-performance:
+    mode: stream
+    stream-mode: sample
+    sample-interval: 5s
+    paths:
+      - /platform/control[slot=*]/cpu[index=all]/total
+      - /platform/control[slot=*]/memory
+  
   srl-acl-statistics:
     mode: stream
-    stream-mode: on-change
+    stream-mode: sample
     paths:
       - /acl/acl-filter[name=*][type=ipv6]/entry[sequence-id=5]/description
       - /acl/acl-filter[name=*][type=ipv6]/entry[sequence-id=6]/description
