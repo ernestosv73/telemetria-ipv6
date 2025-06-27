@@ -28,7 +28,7 @@ subscriptions:
   
   srl-acl-statistics:
     mode: stream
-    stream-mode: on-change
+    stream-mode: sample
     sample-interval: 5s
     paths:
       
