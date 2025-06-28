@@ -1,0 +1,38 @@
+{
+  "annotations": { "list": [] },
+  "title": "ACL Matched Packets Overview",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Matched Packets per ACL Entry",
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": { "unit": "pps" },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": 'acl_interface_input_acl_filter_entry_matched_packets{entry="5"}',
+          "legendFormat": "iface {{interface}} entry5"
+        },
+        {
+          "expr": 'acl_interface_input_acl_filter_entry_matched_packets{entry="6"}',
+          "legendFormat": "iface {{interface}} entry6"
+        },
+        {
+          "expr": 'acl_interface_input_acl_filter_entry_matched_packets{entry="7"}',
+          "legendFormat": "iface {{interface}} entry7"
+        },
+        {
+          "expr": 'acl_interface_input_acl_filter_entry_matched_packets{entry="100"}',
+          "legendFormat": "iface {{interface}} entry100"
+        }
+      ],
+      "options": { "tooltip": { "mode": "all" }, "legend": { "displayMode": "table" } },
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 8 }
+    }
+  ],
+  "schemaVersion": 35,
+  "version": 1,
+  "refresh": "5s"
+}
