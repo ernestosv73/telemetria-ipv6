@@ -1,6 +1,7 @@
 {
-  "annotations": { "list": [] },
+  "uid": "acl-dashboard",
   "title": "ACL Matched Packets Overview",
+  "annotations": { "list": [] },
   "panels": [
     {
       "type": "timeseries",
@@ -12,23 +13,26 @@
       },
       "targets": [
         {
-          "expr": 'acl_interface_input_acl_filter_entry_matched_packets{entry="5"}',
+          "expr": "acl_interface_input_acl_filter_entry_matched_packets{entry=\"5\"}",
           "legendFormat": "iface {{interface}} entry5"
         },
         {
-          "expr": 'acl_interface_input_acl_filter_entry_matched_packets{entry="6"}',
+          "expr": "acl_interface_input_acl_filter_entry_matched_packets{entry=\"6\"}",
           "legendFormat": "iface {{interface}} entry6"
         },
         {
-          "expr": 'acl_interface_input_acl_filter_entry_matched_packets{entry="7"}',
+          "expr": "acl_interface_input_acl_filter_entry_matched_packets{entry=\"7\"}",
           "legendFormat": "iface {{interface}} entry7"
         },
         {
-          "expr": 'acl_interface_input_acl_filter_entry_matched_packets{entry="100"}',
+          "expr": "acl_interface_input_acl_filter_entry_matched_packets{entry=\"100\"}",
           "legendFormat": "iface {{interface}} entry100"
         }
       ],
-      "options": { "tooltip": { "mode": "all" }, "legend": { "displayMode": "table" } },
+      "options": {
+        "tooltip": { "mode": "all" },
+        "legend": { "displayMode": "table" }
+      },
       "gridPos": { "x": 0, "y": 0, "w": 24, "h": 8 }
     }
   ],
