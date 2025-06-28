@@ -1,42 +1,87 @@
 {
   "uid": "acl-dashboard",
   "title": "ACL Matched Packets Overview",
-  "annotations": { "list": [] },
+  "schemaVersion": 41,
+  "version": 1,
+  "refresh": "5s",
   "panels": [
     {
+      "id": 1,
       "type": "timeseries",
       "title": "Matched Packets per ACL Entry",
-      "datasource": "Prometheus",
-      "fieldConfig": {
-        "defaults": { "unit": "pps" },
-        "overrides": []
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus_uid"
       },
       "targets": [
         {
           "expr": "acl_interface_input_acl_filter_entry_matched_packets{entry=\"5\"}",
-          "legendFormat": "iface {{interface}} entry5"
+          "legendFormat": "iface {{interface_id}} entry5",
+          "refId": "A"
         },
         {
           "expr": "acl_interface_input_acl_filter_entry_matched_packets{entry=\"6\"}",
-          "legendFormat": "iface {{interface}} entry6"
+          "legendFormat": "iface {{interface_id}} entry6",
+          "refId": "B"
         },
         {
           "expr": "acl_interface_input_acl_filter_entry_matched_packets{entry=\"7\"}",
-          "legendFormat": "iface {{interface}} entry7"
+          "legendFormat": "iface {{interface_id}} entry7",
+          "refId": "C"
         },
         {
           "expr": "acl_interface_input_acl_filter_entry_matched_packets{entry=\"100\"}",
-          "legendFormat": "iface {{interface}} entry100"
+          "legendFormat": "iface {{interface_id}} entry100",
+          "refId": "D"
         }
       ],
-      "options": {
-        "tooltip": { "mode": "all" },
-        "legend": { "displayMode": "table" }
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 0
       },
-      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 8 }
+      "fieldConfig": {
+        "defaults": {
+          "unit": "pps",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "all"
+        }
+      }
     }
   ],
-  "schemaVersion": 35,
-  "version": 1,
-  "refresh": "5s"
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": [
+      {
+        "type": "dashboard",
+        "name": "Annotations & Alerts",
+        "enabled": true,
+        "hide": true,
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        }
+      }
+    ]
+  }
 }
