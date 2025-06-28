@@ -1,13 +1,6 @@
 {
-  "uid": "acl-dashboard",
   "title": "ACL Matched Packets Overview",
-  "schemaVersion": 41,
-  "version": 1,
   "refresh": "5s",
-  "time": {
-    "from": "now-6h",
-    "to": "now"
-  },
   "panels": [
     {
       "type": "timeseries",
@@ -16,34 +9,34 @@
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
       },
+      "targets": [
+        {
+          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"5\"}",
+          "legendFormat": "iface {{interface_interface_id}} entry5",
+          "refId": "A"
+        },
+        {
+          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"6\"}",
+          "legendFormat": "iface {{interface_interface_id}} entry6",
+          "refId": "B"
+        },
+        {
+          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"7\"}",
+          "legendFormat": "iface {{interface_interface_id}} entry7",
+          "refId": "C"
+        },
+        {
+          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"100\"}",
+          "legendFormat": "iface {{interface_interface_id}} entry100",
+          "refId": "D"
+        }
+      ],
       "fieldConfig": {
         "defaults": {
           "unit": "pps"
         },
         "overrides": []
       },
-      "targets": [
-        {
-          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry=\"5\"}",
-          "legendFormat": "iface {{interface_id}} entry5",
-          "refId": "A"
-        },
-        {
-          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry=\"6\"}",
-          "legendFormat": "iface {{interface_id}} entry6",
-          "refId": "B"
-        },
-        {
-          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry=\"7\"}",
-          "legendFormat": "iface {{interface_id}} entry7",
-          "refId": "C"
-        },
-        {
-          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry=\"100\"}",
-          "legendFormat": "iface {{interface_id}} entry100",
-          "refId": "D"
-        }
-      ],
       "gridPos": {
         "h": 8,
         "w": 24,
@@ -56,11 +49,20 @@
         },
         "legend": {
           "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
+          "showLegend": true,
+          "placement": "bottom"
         }
-      },
-      "id": 1
+      }
     }
-  ]
+  ],
+  "schemaVersion": 41,
+  "version": 1,
+  "uid": "acl-dashboard",
+  "annotations": {
+    "list": []
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  }
 }
