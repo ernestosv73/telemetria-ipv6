@@ -12,12 +12,12 @@
       "targets": [
         {
           "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"5\"}",
-          "legendFormat": "iface {{interface_interface_id}} entry5",
+          "legendFormat": "iface {{interface_interface_id}} RAGuard",
           "refId": "A"
         },
         {
           "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"6\"}",
-          "legendFormat": "iface {{interface_interface_id}} entry6",
+          "legendFormat": "iface {{interface_interface_id}} DenyScan",
           "refId": "B"
         },
         {
@@ -27,7 +27,7 @@
         },
         {
           "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"100\"}",
-          "legendFormat": "iface {{interface_interface_id}} entry100",
+          "legendFormat": "iface {{interface_interface_id}} DenyICMPv6Attack",
           "refId": "D"
         }
       ],
