@@ -3,8 +3,8 @@
   "refresh": "5s",
   "panels": [
     {
-      "type": "timeseries",
-      "title": "Matched Packets per ACL Entry",
+      "type": "table",
+      "title": "ACL Matched Packets (Table View)",
       "datasource": {
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
@@ -12,41 +12,47 @@
       "targets": [
         {
           "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"5\"}",
-          "legendFormat": "iface {{interface_interface_id}} RAGuard",
+          "legendFormat": "RAGuard",
           "refId": "A"
         },
         {
           "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"6\"}",
-          "legendFormat": "iface {{interface_interface_id}} DenyScan",
+          "legendFormat": "DenyScan",
           "refId": "B"
         },
         {
           "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"100\"}",
-          "legendFormat": "iface {{interface_interface_id}} DenyICMPv6Attack",
+          "legendFormat": "DenyICMPv6Attack",
           "refId": "C"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "pps"
+          "unit": "pps",
+          "custom": {
+            "displayMode": "color-text"
+          }
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
+        "h": 12,
         "w": 24,
         "x": 0,
         "y": 0
       },
       "options": {
-        "tooltip": {
-          "mode": "all"
+        "showHeader": true,
+        "cellOptions": {
+          "mode": "auto"
         },
-        "legend": {
-          "displayMode": "table",
-          "showLegend": true,
-          "placement": "bottom"
-        }
+        "sortBy": [
+          {
+            "displayName": "interface_interface_id",
+            "desc": false
+          }
+        },
+        "columns": []
       }
     }
   ],
