@@ -4,7 +4,7 @@
   "panels": [
     {
       "type": "table",
-      "title": "ACL Matched Packets (Table View)",
+      "title": "ACL Matched Packets (Pivot View)",
       "datasource": {
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
@@ -12,17 +12,17 @@
       "targets": [
         {
           "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"5\"}",
-          "legendFormat": "{{interface_interface_id}} RAGuard",
+          "legendFormat": "RAGuard",
           "refId": "A"
         },
         {
           "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"6\"}",
-          "legendFormat": "{{interface_interface_id}} DenyScan",
+          "legendFormat": "DenyScan",
           "refId": "B"
         },
         {
           "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"100\"}",
-          "legendFormat": "{{interface_interface_id}} DenyICMPv6Attack",
+          "legendFormat": "DenyICMPv6Attack",
           "refId": "C"
         }
       ],
@@ -43,7 +43,43 @@
       },
       "options": {
         "showHeader": true
-      }
+      },
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "interface_interface_id": {
+                "aggregations": []
+              }
+            },
+            "aggregations": [
+              {
+                "field": "RAGuard",
+                "id": "raguard",
+                "name": "RAGuard",
+                "type": "lastNotNull"
+              },
+              {
+                "field": "DenyScan",
+                "id": "denyscan",
+                "name": "DenyScan",
+                "type": "lastNotNull"
+              },
+              {
+                "field": "DenyICMPv6Attack",
+                "id": "denyicmp",
+                "name": "DenyICMPv6Attack",
+                "type": "lastNotNull"
+              }
+            ]
+          }
+        }
+      ]
     }
   ],
   "schemaVersion": 41,
