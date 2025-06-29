@@ -21,14 +21,9 @@
           "refId": "B"
         },
         {
-          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"7\"}",
-          "legendFormat": "iface {{interface_interface_id}} entry7",
-          "refId": "C"
-        },
-        {
           "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"100\"}",
           "legendFormat": "iface {{interface_interface_id}} DenyICMPv6Attack",
-          "refId": "D"
+          "refId": "C"
         }
       ],
       "fieldConfig": {
