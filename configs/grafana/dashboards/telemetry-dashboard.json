@@ -3,17 +3,27 @@
   "refresh": "5s",
   "panels": [
     {
-      "type": "table",
-      "title": "ACL Matched Packets (by Interface and Entry)",
+      "type": "timeseries",
+      "title": "Matched Packets per ACL Entry",
       "datasource": {
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
       },
       "targets": [
         {
-          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets",
-          "refId": "A",
-          "legendFormat": ""
+          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"5\"}",
+          "legendFormat": "iface {{interface_interface_id}} RAGuard",
+          "refId": "A"
+        },
+        {
+          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"6\"}",
+          "legendFormat": "iface {{interface_interface_id}} DenyScan",
+          "refId": "B"
+        },
+        {
+          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"100\"}",
+          "legendFormat": "iface {{interface_interface_id}} DenyICMPv6Attack",
+          "refId": "C"
         }
       ],
       "fieldConfig": {
@@ -22,40 +32,22 @@
         },
         "overrides": []
       },
-      "options": {
-        "showHeader": true,
-        "cellHeight": "sm"
-      },
       "gridPos": {
-        "h": 15,
+        "h": 8,
         "w": 24,
         "x": 0,
         "y": 0
       },
-      "transformations": [
-        {
-          "id": "filterFieldsByName",
-          "options": {
-            "include": {
-              "names": [
-                "Time",
-                "Value",
-                "entry_sequence_id",
-                "interface_interface_id"
-              ]
-            }
-          }
+      "options": {
+        "tooltip": {
+          "mode": "all"
         },
-        {
-          "id": "labelsToFields",
-          "options": {
-            "valueLabel": "entry_sequence_id",
-            "labelsToFields": [
-              "interface_interface_id"
-            ]
-          }
+        "legend": {
+          "displayMode": "table",
+          "showLegend": true,
+          "placement": "bottom"
         }
-      ]
+      }
     }
   ],
   "schemaVersion": 41,
