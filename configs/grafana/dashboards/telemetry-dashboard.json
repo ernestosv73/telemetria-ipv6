@@ -4,78 +4,54 @@
   "panels": [
     {
       "type": "table",
-      "title": "ACL Matched Packets (Pivot View)",
+      "title": "ACL Matched Packets (by Interface and Entry)",
       "datasource": {
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
       },
       "targets": [
         {
-          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"5\"}",
-          "legendFormat": "RAGuard",
-          "refId": "A"
-        },
-        {
-          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"6\"}",
-          "legendFormat": "DenyScan",
-          "refId": "B"
-        },
-        {
-          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"100\"}",
-          "legendFormat": "DenyICMPv6Attack",
-          "refId": "C"
+          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets",
+          "refId": "A",
+          "legendFormat": ""
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "pps",
-          "custom": {
-            "displayMode": "auto"
-          }
+          "unit": "pps"
         },
         "overrides": []
       },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
       "gridPos": {
-        "h": 12,
+        "h": 15,
         "w": 24,
         "x": 0,
         "y": 0
       },
-      "options": {
-        "showHeader": true
-      },
       "transformations": [
         {
-          "id": "merge",
-          "options": {}
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "Time",
+                "Value",
+                "entry_sequence_id",
+                "interface_interface_id"
+              ]
+            }
+          }
         },
         {
-          "id": "groupBy",
+          "id": "labelsToFields",
           "options": {
-            "fields": {
-              "interface_interface_id": {
-                "aggregations": []
-              }
-            },
-            "aggregations": [
-              {
-                "field": "RAGuard",
-                "id": "raguard",
-                "name": "RAGuard",
-                "type": "lastNotNull"
-              },
-              {
-                "field": "DenyScan",
-                "id": "denyscan",
-                "name": "DenyScan",
-                "type": "lastNotNull"
-              },
-              {
-                "field": "DenyICMPv6Attack",
-                "id": "denyicmp",
-                "name": "DenyICMPv6Attack",
-                "type": "lastNotNull"
-              }
+            "valueLabel": "entry_sequence_id",
+            "labelsToFields": [
+              "interface_interface_id"
             ]
           }
         }
