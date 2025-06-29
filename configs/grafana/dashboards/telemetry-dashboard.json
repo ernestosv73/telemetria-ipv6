@@ -12,17 +12,17 @@
       "targets": [
         {
           "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"5\"}",
-          "legendFormat": "RAGuard",
+          "legendFormat": "{{interface_interface_id}} RAGuard",
           "refId": "A"
         },
         {
           "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"6\"}",
-          "legendFormat": "DenyScan",
+          "legendFormat": "{{interface_interface_id}} DenyScan",
           "refId": "B"
         },
         {
           "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"100\"}",
-          "legendFormat": "DenyICMPv6Attack",
+          "legendFormat": "{{interface_interface_id}} DenyICMPv6Attack",
           "refId": "C"
         }
       ],
@@ -30,7 +30,7 @@
         "defaults": {
           "unit": "pps",
           "custom": {
-            "displayMode": "color-text"
+            "displayMode": "auto"
           }
         },
         "overrides": []
@@ -42,17 +42,7 @@
         "y": 0
       },
       "options": {
-        "showHeader": true,
-        "cellOptions": {
-          "mode": "auto"
-        },
-        "sortBy": [
-          {
-            "displayName": "interface_interface_id",
-            "desc": false
-          }
-        },
-        "columns": []
+        "showHeader": true
       }
     }
   ],
