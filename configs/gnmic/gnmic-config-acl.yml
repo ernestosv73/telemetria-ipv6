@@ -15,14 +15,12 @@ subscriptions:
     sample-interval: 5s
     paths:
       - /platform/control[slot=*]/cpu[index=all]/total
-      - /platform/control[slot=*]/memory
-  
+        
   srl-if-stats:
     mode: stream
     stream-mode: sample
     sample-interval: 5s
     paths:
-      - /interface[name=ethernet-1/*]/oper-state
       - /interface[name=ethernet-1/*]/statistics
       - /interface[name=ethernet-1/*]/traffic-rate
   
@@ -42,40 +40,4 @@ outputs:
   prom-output:
     type: prometheus
     listen: :9273  
-    event-processors:
-      - trim-prefixes
-      - rename-srl-interface
-      - oper-state-to-int
-
-processors:
-  trim-prefixes:
-    event-strings:
-      value-names:
-        - "^/state/.*"
-      transforms:
-        - trim-prefix:
-            apply-on: "name"
-            prefix: "/state/"
-
-  oper-state-to-int:
-    event-strings:
-      value-names:
-        - ".*"
-      transforms:
-        - replace:
-            apply-on: "value"
-            old: "up"
-            new: "1"
-        - replace:
-            apply-on: "value"
-            old: "down"
-            new: "0"
-  rename-srl-interface:
-    event-strings:
-      tag-names:
-        - "^interface_name"
-      transforms:
-        - replace:
-            apply-on: "value"
-            old: "ethernet-(\\d+)/(\\d+)"
-            new: "e$1-$2"
+   
