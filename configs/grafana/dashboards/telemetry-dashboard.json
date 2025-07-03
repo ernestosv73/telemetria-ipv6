@@ -67,7 +67,7 @@
         "defaults": {
           "unit": "pps",
           "min": 0,
-          "max": 1000,
+          "max": 2000,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -81,7 +81,7 @@
               },
               {
                 "color": "red",
-                "value": 800
+                "value": 1000
               }
             ]
           }
