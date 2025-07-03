@@ -1,10 +1,10 @@
 {
-  "title": "ACL Matched Packets Overview",
+  "title": "Telemetría IPv6",
   "refresh": "5s",
   "panels": [
     {
       "type": "timeseries",
-      "title": "Matched Packets per ACL Entry",
+      "title": "Matched Packets por ACL Entry",
       "datasource": {
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
@@ -51,7 +51,7 @@
     },
     {
       "type": "gauge",
-      "title": "Multicast Packets (per Interface)",
+      "title": "Multicast Packets (por Interface)",
       "datasource": {
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
