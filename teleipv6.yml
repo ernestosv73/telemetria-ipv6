@@ -53,7 +53,20 @@ topology:
         GF_AUTH_ANONYMOUS: "true"
         GF_AUTH_OAUTH_AUTO_LOGIN: "true"
      
-    
+    elastic:
+      kind: linux
+      mgmt-ipv4: 172.80.80.9
+      image: docker.elastic.co/elasticsearch/elasticsearch:7.17.7
+      
+      env:
+        node.name: es01
+        discovery.type: single-node
+        #xpack.security.enabled: "true"
+        #xpack.security.audit.enabled: "true"
+        #xpack.security.authc.api_key.enabled: "true"
+        ES_JAVA_OPTS: "-Xms1g -Xmx1g"
+      ports:
+        - 9200:9200/tcp
 
     srvweb:
        kind: linux
