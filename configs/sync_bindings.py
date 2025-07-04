@@ -11,7 +11,7 @@ from collections import defaultdict
 
 # Configuraciones
 JSON_FILE = "/data/mac_ipv6_bindings_dynamic.json"
-ES_URL = "http://172.20.20.9:9200"
+ES_URL = "http://172.80.80.9:9200"
 SRL_URL = "http://srlswitch/jsonrpc"
 SRL_USER = "admin"
 SRL_PASS = "NokiaSrl1!"
