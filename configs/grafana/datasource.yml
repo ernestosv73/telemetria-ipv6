@@ -12,7 +12,7 @@ datasources:
     url: http://172.80.80.9:9200
     isDefault: false
     jsonData:
-      index: "mac-ipv6-[YYYY.MM.DD]"
-      timeField: "timestamp"
-      interval: "Daily"
+      index: '[metrics-]YYYY.MM.DD'
+      interval: Daily
+      timeField: '@timestamp'
       esVersion: 7
