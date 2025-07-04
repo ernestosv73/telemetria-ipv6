@@ -6,13 +6,4 @@ datasources:
     type: prometheus
     url: http://prometheus:9090
   
-  - name: MAC IPv6 Bindings
-    type: elasticsearch
-    access: proxy
-    url: http://172.80.80.9:9200
-    isDefault: false
-    jsonData:
-      index: '[mac-ipv6-]YYYY.MM.DD'
-      interval: Daily
-      timeField: '@timestamp'
-      esVersion: 7
+  
