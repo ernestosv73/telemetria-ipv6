@@ -44,7 +44,7 @@ topology:
       ports:
         - 3000:3000
       env:
-        #GF_INSTALL_PLUGINS: "andrewbmchugh-flow-panel"
+        GF_INSTALL_PLUGINS: "yesoreyeram-infinity-datasource"
         # env vars to enable anonymous access
         GF_ORG_ROLE: "Admin"
         GF_ORG_NAME: "Main Org"
