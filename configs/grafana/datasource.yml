@@ -15,4 +15,4 @@ datasources:
       index: '[mac-ipv6-]YYYY.MM.DD'
       interval: Daily
       timeField: '@timestamp'
-      esVersion: 7
+      logMessageField: _source
