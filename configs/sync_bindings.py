@@ -3,6 +3,7 @@
 import json
 import time
 import hashlib
+import requests
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -10,6 +11,7 @@ from collections import defaultdict
 
 # Configuraciones
 JSON_FILE = "/data/mac_ipv6_bindings_dynamic.json"
+ES_URL = "http://172.20.20.9:9200"
 SRL_URL = "http://srlswitch/jsonrpc"
 SRL_USER = "admin"
 SRL_PASS = "NokiaSrl1!"
@@ -49,6 +51,28 @@ def leer_nuevos_bindings():
         print(f"[!] Error leyendo JSON: {e}")
     return nuevos
 
+# Elasticsearch
+def enviar_bulk_elasticsearch(entries):
+    if not entries:
+        return
+    fecha = datetime.utcnow().strftime("%Y.%m.%d")
+    index_name = f"mac-ipv6-{fecha}"
+    bulk_url = f"{ES_URL}/{index_name}/_bulk"
+
+    bulk_data = ""
+    for entry in entries:
+        bulk_data += json.dumps({"index": {}}) + "\n"
+        bulk_data += json.dumps(entry) + "\n"
+
+    headers = {"Content-Type": "application/json"}
+    response = requests.post(bulk_url, headers=headers, data=bulk_data)
+
+    if response.status_code == 200:
+        print(f"[+] {len(entries)} entradas enviadas a {index_name}")
+    else:
+        print(f"[!] Error al enviar a Elasticsearch: {response.status_code}")
+        print(response.text)
+
 # ACLs para SR Linux
 def bindings_acl_hash(bindings):
     return hashlib.sha256(json.dumps(bindings, sort_keys=True).encode()).hexdigest()
@@ -85,7 +109,7 @@ def build_and_send_acls(bindings):
         commands.append(f"set acl interface {iface} input acl-filter {iface} type ipv6")
         commands.append(f"set acl acl-filter {iface} type ipv6 statistics-per-entry true")
         commands.append(f"set acl acl-filter {iface} type ipv6 subinterface-specific input-only")
-
+       
     commands.append("commit stay")
 
     payload = {
@@ -115,16 +139,17 @@ def build_and_send_acls(bindings):
 
 # Main loop
 def main():
-    print(f"[*] Iniciando monitoreo de bindings y envío de ACLs cada {INTERVALO_SEGUNDOS}s...")
+    print(f"[*] Iniciando monitoreo conjunto de ACLs y Elasticsearch cada {INTERVALO_SEGUNDOS}s...")
 
     while True:
         nuevos = leer_nuevos_bindings()
 
         if nuevos:
             print(f"[+] Nuevos bindings detectados: {len(nuevos)}")
+            enviar_bulk_elasticsearch(nuevos)
             build_and_send_acls(nuevos)
         else:
-            print("[=] Sin nuevos bindings válidos. No se enviaron ACLs.")
+            print("[=] Sin nuevos bindings válidos. No se envió nada.")
 
         time.sleep(INTERVALO_SEGUNDOS)
 
