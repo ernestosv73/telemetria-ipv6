@@ -61,11 +61,14 @@ def enviar_bulk_elasticsearch(entries):
 
     bulk_data = ""
     for entry in entries:
-        # Creamos el mensaje legible
+        # Agregamos @timestamp para compatibilidad con Grafana
+        entry["@timestamp"] = datetime.utcnow().isoformat()
+
+        # Creamos el mensaje legible para logs
         mensaje = f"[{entry.get('timestamp')}] MAC: {entry.get('mac')} | Interface: {entry.get('interface')} | LL: {entry.get('ipv6_link_local')} | GUA: {entry.get('ipv6_global')}"
-        # Añadimos el campo 'message'
         entry["message"] = mensaje
 
+        # Construimos entrada bulk
         bulk_data += json.dumps({"index": {}}) + "\n"
         bulk_data += json.dumps(entry) + "\n"
 
@@ -77,6 +80,7 @@ def enviar_bulk_elasticsearch(entries):
     else:
         print(f"[!] Error al enviar a Elasticsearch: {response.status_code}")
         print(response.text)
+
 
 
 # ACLs para SR Linux
