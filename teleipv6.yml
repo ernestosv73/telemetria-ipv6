@@ -95,7 +95,6 @@ topology:
     gNMIc:
       kind: linux
       image: esanchezv/hellt-gnmic:latest
-      #image: ghcr.io/openconfig/gnmic:0.39.1
       binds:
         - configs/python_scapy.sh:/root/python_scapy.sh
         - configs/gnmic/gnmic-config.yml:/gnmic-config.yml:ro
@@ -104,7 +103,7 @@ topology:
         - configs/alerts-nd.py:/root/alerts-nd.py
         - configs/supervisord.conf:/root/supervisord.conf
         - configs/sync_bindings.py:/root/sync_bindings.py
-        - configs/parse-acls-statsv2.py:/root/parse-acls-statsv2.py
+        
       
       exec:
          - mkdir /data
@@ -112,9 +111,7 @@ topology:
          - touch /data/mac_ipv6_bindings_dynamic.json
          - chmod +x /root/python_scapy.sh
          - bash /root/python_scapy.sh
-        #- mkdir /etc/periodic/1min
-        #- cp /root/capture-and-correlate.sh /etc/periodic/1min/capture-and-correlate
-        #- chmod +x /etc/periodic/1min/capture-and-correlate
+        
 
     PC4:
       kind: linux
@@ -134,7 +131,7 @@ topology:
       mtu: 1500
     - endpoints: ["PC4:eth1", "srlswitch:e1-5"]
       mtu: 1500  
-    #- endpoints: ["suricata:eth1", "srlswitch:e1-6"]
+    
   
     
     
