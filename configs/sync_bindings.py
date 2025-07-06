@@ -11,7 +11,7 @@ from collections import defaultdict
 
 # Configuraciones
 JSON_FILE = "/data/mac_ipv6_bindings_dynamic.json"
-ES_URL = "http://172.20.20.9:9200"
+ES_URL = "http://172.80.80.9:9200"
 SRL_URL = "http://srlswitch/jsonrpc"
 SRL_USER = "admin"
 SRL_PASS = "NokiaSrl1!"
@@ -61,6 +61,11 @@ def enviar_bulk_elasticsearch(entries):
 
     bulk_data = ""
     for entry in entries:
+        # Creamos el mensaje legible
+        mensaje = f"[{entry.get('timestamp')}] MAC: {entry.get('mac')} | Interface: {entry.get('interface')} | LL: {entry.get('ipv6_link_local')} | GUA: {entry.get('ipv6_global')}"
+        # Añadimos el campo 'message'
+        entry["message"] = mensaje
+
         bulk_data += json.dumps({"index": {}}) + "\n"
         bulk_data += json.dumps(entry) + "\n"
 
