@@ -83,8 +83,8 @@ topology:
     PC1:
       kind: linux
       image: docker.io/esanchezv/kaliipv6:latest
-      exec:
-        - "sysctl net.ipv6.conf.eth1.addr_gen_mode=3"
+      #exec:
+        #- "sysctl net.ipv6.conf.eth1.addr_gen_mode=3"
               
     PC2:
       kind: linux
