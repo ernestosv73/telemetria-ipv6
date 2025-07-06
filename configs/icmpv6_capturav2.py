@@ -60,7 +60,7 @@ def save_bindings():
     with open(OUTPUT_JSON, 'w') as f:
         json.dump(valid, f, indent=2)
 
-# === Procesar paquetes ICMPv6 ===
+# === Procesar paquetes ICMPv6 (solo RS y NS válidos) ===
 def process_packet(pkt):
     if not pkt.haslayer(IPv6) or not pkt.haslayer(Ether):
         return
@@ -89,20 +89,30 @@ def process_packet(pkt):
 
     updated = False
 
-    # === Mensaje RS: usar source address como link-local ===
+    # === Mensaje RS → usar source address como link-local ===
     if pkt.haslayer(ICMPv6ND_RS):
         if src_ip.startswith("fe80::"):
             print(f"[DEBUG] RS → Link-local detectada para {src_mac}: {src_ip}")
             bindings[src_mac]["ipv6_link_local"] = src_ip
             updated = True
 
-    # === Mensaje NS: usar target como dirección global ===
-    if pkt.haslayer(ICMPv6ND_NS):
+    # === Mensaje NS → usar solo si es DAD válido ===
+    elif pkt.haslayer(ICMPv6ND_NS):
+        # Confirmar que es un NS tipo DAD (ver si dst_mac es solicited-node multicast y coincide con sufijo src_mac)
+        if dst_mac.startswith("33:33:ff"):
+            src_suffix = src_mac.split(":")[-3:]
+            dst_suffix = dst_mac.split(":")[-3:]
+            if src_suffix != dst_suffix:
+                print(f"[DEBUG] NS descartado: sufijo src_mac {src_suffix} ≠ dst_mac {dst_suffix}")
+                return
+
         ip_target = pkt[ICMPv6ND_NS].tgt
         if not ip_target.startswith("fe80::"):
             print(f"[DEBUG] NS → Global detectada para {src_mac}: {ip_target}")
             bindings[src_mac]["ipv6_global"] = ip_target
             updated = True
+
+    # Mensajes NA son ignorados
 
     if updated:
         bindings[src_mac]["timestamp"] = timestamp
