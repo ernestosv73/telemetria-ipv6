@@ -98,7 +98,7 @@ def process_packet(pkt):
 
     
     # === Mensaje NS → usar solo si es DAD válido ===
-elif pkt.haslayer(ICMPv6ND_NS):
+    elif pkt.haslayer(ICMPv6ND_NS):
     ip_target = pkt[ICMPv6ND_NS].tgt
 
     # Validar solo si target es una IPv6 global unicast
@@ -116,7 +116,6 @@ elif pkt.haslayer(ICMPv6ND_NS):
         print(f"[DEBUG] NS válido (DAD) → Global detectada para {src_mac}: {ip_target}")
         bindings[src_mac]["ipv6_global"] = ip_target
         updated = True
-
 
     # Mensajes NA son ignorados
 
