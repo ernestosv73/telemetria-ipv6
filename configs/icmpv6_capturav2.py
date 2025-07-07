@@ -96,21 +96,27 @@ def process_packet(pkt):
             bindings[src_mac]["ipv6_link_local"] = src_ip
             updated = True
 
+    
     # === Mensaje NS → usar solo si es DAD válido ===
-    elif pkt.haslayer(ICMPv6ND_NS):
-        # Confirmar que es un NS tipo DAD (ver si dst_mac es solicited-node multicast y coincide con sufijo src_mac)
-        if dst_mac.startswith("33:33:ff"):
-            src_suffix = src_mac.split(":")[-3:]
-            dst_suffix = dst_mac.split(":")[-3:]
-            if src_suffix != dst_suffix:
-                print(f"[DEBUG] NS descartado: sufijo src_mac {src_suffix} ≠ dst_mac {dst_suffix}")
-                return
+elif pkt.haslayer(ICMPv6ND_NS):
+    ip_target = pkt[ICMPv6ND_NS].tgt
 
-        ip_target = pkt[ICMPv6ND_NS].tgt
-        if not ip_target.startswith("fe80::"):
-            print(f"[DEBUG] NS → Global detectada para {src_mac}: {ip_target}")
-            bindings[src_mac]["ipv6_global"] = ip_target
-            updated = True
+    # Validar solo si target es una IPv6 global unicast
+    if not ip_target.startswith("fe80::"):
+        # Extraer últimos 24 bits (6 hex dígitos) de target IPv6
+        target_suffix = ip_target.replace(":", "")[-6:].lower()
+        
+        # Extraer últimos 24 bits de dirección de destino (multicast)
+        dst_ip_suffix = ipv6.dst.replace(":", "")[-6:].lower()
+
+        if target_suffix != dst_ip_suffix:
+            print(f"[DEBUG] NS descartado: sufijo target {target_suffix} ≠ destino {dst_ip_suffix}")
+            return
+
+        print(f"[DEBUG] NS válido (DAD) → Global detectada para {src_mac}: {ip_target}")
+        bindings[src_mac]["ipv6_global"] = ip_target
+        updated = True
+
 
     # Mensajes NA son ignorados
 
