@@ -97,27 +97,22 @@ def process_packet(pkt):
             bindings[src_mac]["ipv6_link_local"] = src_ip
             updated = True
 
-    # === Mensaje NS → usar solo si es DAD válido ===
+    # === Mensaje NS → válido solo si es DAD (RFC 4862) ===
     elif pkt.haslayer(ICMPv6ND_NS):
         ip_target = pkt[ICMPv6ND_NS].tgt
 
-        if not ip_target.startswith("fe80::"):
-            # Extraer últimos 24 bits (6 hex dígitos) de target IPv6
-            target_suffix = ip_target.replace(":", "")[-6:].lower()
-            # Extraer últimos 24 bits del destino IPv6 (debe ser solicited-node multicast)
-            dst_ip_suffix = dst_ip.replace(":", "")[-6:].lower()
-
-            if target_suffix != dst_ip_suffix:
-                print(f"[DEBUG] NS descartado: sufijo target {target_suffix} ≠ destino {dst_ip_suffix}")
-                return
-
-            print(f"[DEBUG] NS válido (DAD) → Global detectada para {src_mac}: {ip_target}")
-            bindings[src_mac]["ipv6_global"] = ip_target
-            updated = True
+        # Verificar condiciones de DAD
+        if src_ip == "::" and dst_ip.lower().startswith("ff02::1:ff"):
+            if not ip_target.startswith("fe80::"):
+                print(f"[DEBUG] NS válido (DAD) → Global detectada para {src_mac}: {ip_target}")
+                bindings[src_mac]["ipv6_global"] = ip_target
+                updated = True
+            else:
+                print(f"[DEBUG] NS descartado: target {ip_target} es link-local")
         else:
-            print(f"[DEBUG] NS descartado: target {ip_target} es link-local")
+            print(f"[DEBUG] NS descartado: no cumple condiciones DAD (src={src_ip}, dst={dst_ip})")
 
-    # Mensajes NA son ignorados
+    # Mensajes NA se ignoran
 
     if updated:
         bindings[src_mac]["timestamp"] = timestamp
