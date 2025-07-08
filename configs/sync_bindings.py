@@ -15,7 +15,7 @@ ES_URL = "http://172.80.80.9:9200"
 SRL_URL = "http://srlswitch/jsonrpc"
 SRL_USER = "admin"
 SRL_PASS = "NokiaSrl1!"
-INTERVALO_SEGUNDOS = 30
+INTERVALO_SEGUNDOS = 15
 
 # Estado
 hashes_enviados = {}
