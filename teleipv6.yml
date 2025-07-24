@@ -5,14 +5,7 @@ mgmt:
   
 topology:
   nodes:
-    # Nokia SRL Linux Layer 2 Device
-    srlswitch:
-      kind: nokia_srlinux
-      image: ghcr.io/nokia/srlinux:24.10.1
-      type: ixrd3
-      startup-config: switch/srlswitch.cfg
-            
-     
+
     # Nokia SRL Linux Router
     srlrouter:
       kind: nokia_srlinux
@@ -21,7 +14,14 @@ topology:
       startup-config: router/config.json
       exec:
         - "sysctl -w net.ipv6.conf.e1-1.accept_ra=0"
-                        
+      
+    # Nokia SRL Linux Layer 2 Device
+    srlswitch:
+      kind: nokia_srlinux
+      image: ghcr.io/nokia/srlinux:24.10.1
+      type: ixrd3
+      startup-config: switch/srlswitch.cfg
+                            
     # TELEMETRIA STACK
     prometheus:
       kind: linux
@@ -85,7 +85,6 @@ topology:
          - touch /data/mac_ipv6_bindings_dynamic.json
          - chmod +x /root/python_scapy.sh
          - bash /root/python_scapy.sh    
-
         
     PC1:
       kind: linux
@@ -116,7 +115,6 @@ topology:
        #- ip -6 route del default dev eth0
         - ip -6 addr add 2001:db8:d1::50/64 dev eth1
         - ip -6 route add 2001:db8:20::/64 via 2001:db8:d1::1  
-
           
   links:
     - endpoints: ["srlrouter:e1-1", "srlswitch:e1-1"]
