@@ -33,4 +33,5 @@ La topología creada provee un laboratorio de pruebas para la automatización de
 * Simular la conexión a la red ejecuntado: `ifconfig eth1 down` `ifconfig eth1 up`
 
 ## Stack Telemetría
+* Visualización de métricas en Grafana / Dashboard Telemetría IPv6
 * Acceder desde navegador en host local a la url: `http://ip-hostlocal:3000` 
