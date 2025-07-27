@@ -34,4 +34,10 @@ La topología creada provee un laboratorio de pruebas para la automatización de
 
 ## Stack Telemetría
 * Visualización de métricas en Grafana / Dashboard Telemetría IPv6
-* Acceder desde navegador en host local a la url: `http://ip-hostlocal:3000` 
+* Acceder desde navegador en host local a la url: `http://ip-hostlocal:3000`
+  
+## Ejemplos ataques
+### Flooding neighbor advertisements (atk6-flood_advertise6). 
+>From https://www.kali.org/tools/thc-ipv6/
+* Desde **PC1**
+  *  Lanzar el ataque ejecutando: `atk6-flood_advertise6 eth1`
