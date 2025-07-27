@@ -41,3 +41,5 @@ La topología creada provee un laboratorio de pruebas para la automatización de
 >***atk6-flood_advertise6:** Flood the target /64 network with ICMPv6 NA messages random IPv6 link local address.
 * Desde **PC1**
   *  Lanzar el ataque ejecutando: `atk6-flood_advertise6 eth1`
+  *  Ataque mitigado por ACL IPv6 bindings permitidos. Visualización en Dashboard Matched Packets por ACL Entry.
+    
