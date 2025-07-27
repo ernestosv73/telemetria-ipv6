@@ -17,10 +17,10 @@ La topología creada provee un laboratorio de pruebas para la automatización de
 | Script |Funcionalidad  |
 |--|--|
 | gnmic_subscribe_mactable |mode: stream / stream-mode: on-change / output file: mac_updates.json  
-| icmpv6_captura* |Captura tráfico ICMPv6 RS NS en proceso SLAAC.
-|                 | Correlaciona tráfico capturado con archivo mac_updates.json 
+|                 |Captura tráfico ICMPv6 RS NS en proceso SLAAC.
+| icmpv6_captura* | Correlaciona tráfico capturado con archivo mac_updates.json 
 |                 | Output file: mac_ipv6_bindings_dynamic.json
-|PC1 y PC3|Kali Linux con THC IPv6 Tool e IPv6Toolkit 
+| sync_bindings* | Input file: mac_ipv6_bindings_dynamic.json 
 |PC2 y PC4|Alpine Linux
 
 
