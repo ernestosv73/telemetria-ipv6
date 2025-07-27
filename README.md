@@ -32,3 +32,5 @@ La topología creada provee un laboratorio de pruebas para la automatización de
 * `docker exec -it clab-telemetria-PCx /bin/bash`
 * Simular la conexión a la red ejecuntado: `ifconfig eth1 down` `ifconfig eth1 up`
 
+## Stack Telemetría
+* Acceder desde navegador en host local a la url: `http://ip-hostlocal:3000` 
