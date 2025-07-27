@@ -21,6 +21,7 @@ La topología creada provee un laboratorio de pruebas para la automatización de
 | icmpv6_captura* | Correlaciona tráfico capturado con archivo mac_updates.json 
 |                 | Output file: mac_ipv6_bindings_dynamic.json
 | sync_bindings* | Input file: mac_ipv6_bindings_dynamic.json 
+|                | Genera ACLs por interface y envía a Nokia Switch vía JSON-RPC  
 |PC2 y PC4|Alpine Linux
 
 
