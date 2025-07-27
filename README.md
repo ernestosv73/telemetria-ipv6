@@ -10,7 +10,8 @@
 </div>
 
 ---
-La topología creada provee un laboratorio de pruebas para la automatización de seguridad en Redes IPv6 basado en los protocolos gNMI, JSON-RPC, integrado con Scapy y Python. 
+La topología creada provee un laboratorio de pruebas para la automatización de seguridad en Redes IPv6 basado en los protocolos gNMI, JSON-RPC, integrado con Scapy y Python.
+![Alt text](imagenes/diagram-export-27-7-2025-01_40_54.png)
 
 ## Funcionalidad nodo gNMIc
 
