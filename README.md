@@ -1,4 +1,4 @@
-# Laboratorio Telemetría IPv6 con Containerlab
+# Telemetría aplicada a la automatización de seguridad en redes IPv6 con Containerlab
 ---
 <div align=center markdown>
 <a href="https://codespaces.new/ernestosv73/nokia24?quickstart=1">
@@ -10,7 +10,7 @@
 </div>
 
 ---
-Este laboratorio de pruebas tiene como objetivo proporcionar una topología de red basada en Containerlab 
+La topología creada provee un laboratorio de pruebas para la automatización de seguridad en Redes IPv6 basado en los protocolos gNMI, JSON-RPC, integrado con Scapy y Python. 
 
 ## Descripción Topología
 
