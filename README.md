@@ -26,4 +26,8 @@ La topología creada provee un laboratorio de pruebas para la automatización de
 
 * Todos los scripts fueron integrados y controlados por el Sistema de Control de Procesos Supervisord.
 * Acceder al nodo gNMIc ejecutando: `docker exec -it clab-telemetria-gNMIc /bin/bash`. Desde el directorio root, ejecutar `supervisord -c supervisord.conf`
+  
+## Conexión a los nodos PC1, PC2, PC4
+* `docker exec -it clab-telemetria-PCx /bin/bash`
+* Simular la conexión a la red ejecuntado: `ifconfig eth1 down` `ifconfig eth1 up`
 
