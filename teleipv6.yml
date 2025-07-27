@@ -9,6 +9,8 @@ topology:
     # Nokia SRL Linux Router
     srlrouter:
       kind: nokia_srlinux
+      labels:
+        graph-icon: router
       image: ghcr.io/nokia/srlinux:24.10.1
       type: ixrd3
       startup-config: router/config.json
@@ -18,6 +20,8 @@ topology:
     # Nokia SRL Linux Layer 2 Device
     srlswitch:
       kind: nokia_srlinux
+      labels:
+        graph-icon: switch
       image: ghcr.io/nokia/srlinux:24.10.1
       type: ixrd3
       startup-config: switch/srlswitch.cfg
@@ -70,6 +74,8 @@ topology:
 
     gNMIc:
       kind: linux
+      labels:
+        graph-icon: host
       image: esanchezv/hellt-gnmic:latest
       binds:
         - configs/python_scapy.sh:/root/python_scapy.sh
@@ -88,18 +94,24 @@ topology:
         
     PC1:
       kind: linux
+      labels:
+        graph-icon: host
       image: docker.io/esanchezv/kaliipv6:latest
       exec:
         - "sysctl net.ipv6.conf.eth1.addr_gen_mode=3"
               
     PC2:
       kind: linux
+      labels:
+        graph-icon: host
       image: docker.io/esanchezv/kaliipv6:latest
       #exec:
       #- ip -6 route del default dev eth0  
                   
     PC4:
       kind: linux
+      labels:
+        graph-icon: host
       image: docker.io/esanchezv/kaliipv6:latest
       #exec:
       #- ip -6 route del default dev eth0
