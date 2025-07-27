@@ -22,5 +22,5 @@ La topología creada provee un laboratorio de pruebas para la automatización de
 |                 | Output file: mac_ipv6_bindings_dynamic.json
 | sync_bindings* | Genera ACLs por interface y envía a Nokia Switch vía JSON-RPC
 |                | Input file: mac_ipv6_bindings_dynamic.json  
-| gnmic_subscribe_acl| Suscripción de métricas ACl match packets y envío a Stack Telemetría Prometheus/Grafana
+| gnmic_subscribe_acl| Suscripción de métricas ACL match packets y envío a Stack Telemetría Prometheus/Grafana
 
