@@ -12,6 +12,13 @@
 ---
 La topología creada provee un laboratorio de pruebas para la automatización de seguridad en Redes IPv6 basado en los protocolos gNMI, JSON-RPC, integrado con Scapy y Python. 
 
-## Descripción Topología
+## Descripción de los nodos
+
+| Nodo |Funcionalidad  |
+|--|--|
+| Router |Nokia SRL Linux 24.10  
+| Switch |Aruba AOS-CX 10.14
+|PC1 y PC3|Kali Linux con THC IPv6 Tool e IPv6Toolkit 
+|PC2 y PC4|Alpine Linux
 
 
