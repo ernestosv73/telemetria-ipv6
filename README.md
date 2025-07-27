@@ -43,5 +43,11 @@ La topología creada provee un laboratorio de pruebas para la automatización de
   *  Lanzar el ataque ejecutando: `atk6-flood_advertise6 eth1`
   *  Ataque mitigado por ACL IPv6 bindings permitidos. Visualización en Dashboard Matched Packets por ACL Entry.
     ![Alt text](imagenes/acl-bindings-permitidos.png)
-  *  Variante ataque send with real source mac. Lanzar el ataque ejecutando: `atk6-flood_advertise6 -k eth1`
+
+### Flooding Router Soliciation. From https://www.kali.org/tools/thc-ipv6/#atk6-flood_solicitate6
+>***atk6-flood_rs6:** Flood the local network with ICMPv6 Router Soliciation packets with real source IPv6 link local address.
+* Desde **PC2**
+  *  Lanzar el ataque ejecutando: `atk6-flood_rs6 eth1`
+  *  Ataque detectado por Métricas Multicast Packets por Interface. Visualización en Dashboard.
+    ![Alt text](imagenes/multicast-packets.png)  
     
