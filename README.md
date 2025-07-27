@@ -42,4 +42,5 @@ La topología creada provee un laboratorio de pruebas para la automatización de
 * Desde **PC1**
   *  Lanzar el ataque ejecutando: `atk6-flood_advertise6 eth1`
   *  Ataque mitigado por ACL IPv6 bindings permitidos. Visualización en Dashboard Matched Packets por ACL Entry.
+    ![Alt text](imagenes/acl bindings permitidos.png)
     
