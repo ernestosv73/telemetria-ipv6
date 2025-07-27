@@ -24,3 +24,5 @@ La topología creada provee un laboratorio de pruebas para la automatización de
 |                | Input file: mac_ipv6_bindings_dynamic.json  
 | gnmic_subscribe_acl| Suscripción de métricas ACL match packets y envío a Stack Telemetría Prometheus/Grafana
 
+* Todos los scripts fueron integrados y controlados por el Sistema de Control de Procesos Supervisord. Ejecutar desde el nodo **gNMIc** el comando `supervisord -c `
+
