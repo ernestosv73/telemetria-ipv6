@@ -17,13 +17,13 @@ La topología creada provee un laboratorio de pruebas para la automatización de
 
 | Script |Funcionalidad  |
 |--|--|
-| gnmic_subscribe_mactable |Descubrimiento automático de nodos que se conectan a la red, (port, mac-addrs) / output file: mac_updates.json  
-| icmpv6_captura* |Captura tráfico ICMPv6 RS NS en proceso SLAAC.
+| gnmic-config.yml |Descubrimiento automático de nodos que se conectan a la red, (port, mac-addrs) / output file: mac_updates.json  
+| icmpv6_capturav2.py |Captura tráfico ICMPv6 RS NS en proceso SLAAC.
 |                 | Correlaciona tráfico capturado con archivo mac_updates.json 
 |                 | Output file: mac_ipv6_bindings_dynamic.json
-| sync_bindings* | Genera ACLs por interface y envía a Nokia Switch vía JSON-RPC
+| sync_bindings.py | Genera ACLs por interface y envía a Nokia Switch vía JSON-RPC
 |                | Input file: mac_ipv6_bindings_dynamic.json  
-| gnmic_subscribe_acl| Suscripción de métricas ACL match packets y envío a Stack Telemetría Prometheus/Grafana
+| gnmic-config-acl.yml| Suscripción de métricas ACL match packets y envío a Stack Telemetría Prometheus/Grafana
 
 * Todos los scripts fueron integrados y controlados por el Sistema de Control de Procesos Supervisord.
 * Acceder al nodo gNMIc ejecutando: `docker exec -it clab-telemetria-gNMIc /bin/bash`. Desde el directorio root, ejecutar `supervisord -c supervisord.conf`
