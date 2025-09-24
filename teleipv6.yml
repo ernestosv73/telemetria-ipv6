@@ -98,8 +98,8 @@ topology:
         graph-icon: host
       image: docker.io/esanchezv/kaliipv6:latest
       exec:
-        - "sysctl net.ipv6.conf.eth1.addr_gen_mode=2"
-        - "sysctl net.ipv6.conf.eth1.use_tempaddr=2"
+        - "sysctl net.ipv6.conf.eth1.addr_gen_mode=3"
+        #- "sysctl net.ipv6.conf.eth1.use_tempaddr=2"
               
     PC2:
       kind: linux
