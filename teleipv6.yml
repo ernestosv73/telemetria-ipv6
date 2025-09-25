@@ -85,6 +85,7 @@ topology:
         - configs/icmpv6_capturav3.py:/root/icmpv6_capturav3.py
         - configs/supervisord.conf:/root/supervisord.conf
         - configs/sync_bindings.py:/root/sync_bindings.py
+        - configs/sync_bindings_v2.py:/root/sync_bindings_v2.py
            
       exec:
          - mkdir /data
