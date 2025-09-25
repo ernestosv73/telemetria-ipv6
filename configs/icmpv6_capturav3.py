@@ -83,6 +83,7 @@ def process_packet(pkt):
     ipv6 = pkt[IPv6]
     src_mac = eth.src.lower().replace("-", ":").strip()
     src_ip = ipv6.src
+    dst_ip = ipv6.dst
     timestamp = datetime.utcnow().isoformat()
 
     # Verificar si MAC está en tabla MAC del switch
