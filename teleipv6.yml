@@ -82,6 +82,7 @@ topology:
         - configs/gnmic/gnmic-config.yml:/gnmic-config.yml:ro
         - configs/gnmic/gnmic-config-acl.yml:/gnmic-config-acl.yml:ro
         - configs/icmpv6_capturav2.py:/root/icmpv6_capturav2.py
+        - configs/icmpv6_capturav3.py:/root/icmpv6_capturav3.py
         - configs/supervisord.conf:/root/supervisord.conf
         - configs/sync_bindings.py:/root/sync_bindings.py
            
