@@ -14,6 +14,7 @@ INTERFACE = "eth1"
 OUTPUT_JSON = "/data/mac_ipv6_bindings_dynamic.json"
 MAC_UPDATES_FILE = "/data/mac_updates.json"
 RELOAD_INTERVAL = 4  # segundos
+TEMP_VALID_LFT = 600  # segundos
 
 # Estructura principal: múltiples IPs por MAC
 bindings = {}
