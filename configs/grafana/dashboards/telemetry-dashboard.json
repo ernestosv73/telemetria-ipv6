@@ -258,19 +258,76 @@
       "pluginVersion": "12.0.2",
       "targets": [
         {
-          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"5\"}",
+          "editorMode": "code",
+          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"1\"}",
           "legendFormat": "iface {{interface_interface_id}} RAGuard",
+          "range": true,
           "refId": "A"
         },
         {
-          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"6\"}",
+          "editorMode": "code",
+          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"2\"}",
           "legendFormat": "iface {{interface_interface_id}} DenyScan",
+          "range": true,
           "refId": "B"
         },
         {
-          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"100\"}",
-          "legendFormat": "iface {{interface_interface_id}} DenyICMPv6Attack",
+          "editorMode": "code",
+          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"3\"}",
+          "legendFormat": "iface {{interface_interface_id}} DenyScan",
+          "range": true,
           "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"4\"}",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "iface {{interface_interface_id}} DenyNSMulticast",
+          "range": true,
+          "refId": "D",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"5\"}",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "iface {{interface_interface_id}} DenyNAMulticast",
+          "range": true,
+          "refId": "E",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"100\"}",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "iface {{interface_interface_id}} DenyICMP6ALL",
+          "range": true,
+          "refId": "F",
+          "useBackend": false
         }
       ],
       "title": "Matched Packets por ACL Entry",
