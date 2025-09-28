@@ -23,6 +23,160 @@
   "panels": [
     {
       "datasource": {
+        "type": "elasticsearch",
+        "uid": "P58366BE54DDA217F"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ipv6_global"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 254
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ipv6_link_local"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 200
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "interface"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 121
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 20,
+        "x": 0,
+        "y": 0
+      },
+      "id": 4,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "12.0.2",
+      "targets": [
+        {
+          "alias": "",
+          "bucketAggs": [
+            {
+              "field": "@timestamp",
+              "id": "2",
+              "settings": {
+                "interval": "auto"
+              },
+              "type": "date_histogram"
+            }
+          ],
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "P58366BE54DDA217F"
+          },
+          "metrics": [
+            {
+              "id": "1",
+              "type": "logs"
+            }
+          ],
+          "query": "",
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "IPv6 Bindings",
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": {
+            "delimiter": ",",
+            "format": "auto",
+            "source": "timestamp"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "30": true,
+              "32": true,
+              "2025-07-06T03": true,
+              "_id": true,
+              "_index": true,
+              "_source": true,
+              "_type": true,
+              "highlight": true,
+              "id": true,
+              "message": true,
+              "sort": true,
+              "timestamp": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {}
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
       },
@@ -76,32 +230,54 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "pps"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
+        "h": 8,
         "w": 24,
         "x": 0,
-        "y": 0
+        "y": 7
       },
       "id": 1,
       "options": {
         "legend": {
           "calcs": [],
-          "displayMode": "list",
+          "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
           "hideZeros": false,
-          "mode": "single",
+          "mode": "all",
           "sort": "none"
         }
       },
       "pluginVersion": "12.0.2",
       "targets": [
+        {
+          "editorMode": "code",
+          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"1\"}",
+          "legendFormat": "iface {{interface_interface_id}} RAGuard",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"2\"}",
+          "legendFormat": "iface {{interface_interface_id}} DenyScan",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "editorMode": "code",
+          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"3\"}",
+          "legendFormat": "iface {{interface_interface_id}} DenyScan",
+          "range": true,
+          "refId": "C"
+        },
         {
           "datasource": {
             "type": "prometheus",
@@ -109,16 +285,52 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"20\"}",
+          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"4\"}",
           "fullMetaSearch": false,
+          "hide": false,
           "includeNullMetadata": true,
-          "legendFormat": "iface {{interface_interface_id}} ACL block spoofing",
+          "instant": false,
+          "legendFormat": "iface {{interface_interface_id}} DenyNSMulticast",
           "range": true,
-          "refId": "A",
+          "refId": "D",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"5\"}",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "iface {{interface_interface_id}} DenyNAMulticast",
+          "range": true,
+          "refId": "E",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"100\"}",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "iface {{interface_interface_id}} DenyICMP6ALL",
+          "range": true,
+          "refId": "F",
           "useBackend": false
         }
       ],
-      "title": "ACL block spoofing Statistics",
+      "title": "Matched Packets por ACL Entry",
       "type": "timeseries"
     },
     {
@@ -128,11 +340,9 @@
       },
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "fieldMinMax": false,
           "mappings": [],
+          "max": 2000,
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -140,12 +350,12 @@
                 "color": "green"
               },
               {
-                "color": "dark-orange",
-                "value": 1000
+                "color": "orange",
+                "value": 500
               },
               {
                 "color": "red",
-                "value": 2000
+                "value": 1000
               }
             ]
           },
@@ -154,10 +364,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
+        "h": 6,
         "w": 12,
         "x": 0,
-        "y": 7
+        "y": 15
       },
       "id": 2,
       "options": {
@@ -171,32 +381,23 @@
           "fields": "",
           "values": false
         },
-        "showThresholdLabels": false,
+        "showThresholdLabels": true,
         "showThresholdMarkers": true,
         "sizing": "auto"
       },
       "pluginVersion": "12.0.2",
       "targets": [
         {
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "interface_statistics_in_broadcast_packets{subscription_name=\"srl-if-stats\"}",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
+          "expr": "interface_statistics_in_multicast_packets",
+          "legendFormat": "{{interface_interface_id}}",
+          "refId": "D"
         }
       ],
-      "title": "Broadcast Packets (por Interface)",
+      "title": "Multicast Packets (por Interface)",
       "transformations": [
         {
           "id": "labelsToFields",
           "options": {
-            "keepLabels": [
-              "interface_name"
-            ],
             "valueLabel": "interface_name"
           }
         }
@@ -247,26 +448,33 @@
             }
           },
           "mappings": [],
+          "max": 100,
+          "min": 0,
           "thresholds": {
-            "mode": "percentage",
+            "mode": "absolute",
             "steps": [
               {
                 "color": "green"
               },
               {
+                "color": "orange",
+                "value": 70
+              },
+              {
                 "color": "red",
-                "value": 80
+                "value": 90
               }
             ]
-          }
+          },
+          "unit": "percent"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 7
+        "w": 24,
+        "x": 0,
+        "y": 21
       },
       "id": 3,
       "options": {
@@ -278,25 +486,19 @@
         },
         "tooltip": {
           "hideZeros": false,
-          "mode": "single",
+          "mode": "all",
           "sort": "none"
         }
       },
       "pluginVersion": "12.0.2",
       "targets": [
         {
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "platform_control_cpu_total_instant{subscription_name=\"srl-system-performance\"}",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
+          "expr": "platform_control_cpu_total_instant",
           "legendFormat": "{{source}}",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
+          "refId": "E"
         }
       ],
-      "title": "Consumo CPU",
+      "title": "Platform CPU Usage (Instant)",
       "type": "timeseries"
     }
   ],
@@ -312,8 +514,8 @@
     "to": "now"
   },
   "timepicker": {},
-  "timezone": "browser",
-  "title": "Telemetria DC",
-  "uid": "94c02041-448e-48ff-94eb-0d35f47d2b2a",
+  "timezone": "",
+  "title": "Telemetría IPv6",
+  "uid": "acl-dashboard",
   "version": 1
 }
