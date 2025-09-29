@@ -18,7 +18,7 @@ La topología creada provee un laboratorio de pruebas para la automatización de
 | Script |Funcionalidad  |
 |--|--|
 | gnmic-config.yml |Descubrimiento automático de nodos que se conectan a la red, (port, mac-addrs) / output file: mac_updates.json  
-| icmpv6_capturav2.py |Captura tráfico ICMPv6 RS NS en proceso SLAAC.
+| icmpv6_capturav3.py |Captura tráfico ICMPv6 RS NS en proceso SLAAC.
 |                 | Correlaciona tráfico capturado con archivo mac_updates.json 
 |                 | Output file: mac_ipv6_bindings_dynamic.json
 | sync_bindings.py | Genera ACLs por interface y envía a Nokia Switch vía JSON-RPC
