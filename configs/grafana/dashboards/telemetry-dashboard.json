@@ -215,7 +215,7 @@
               "mode": "none"
             },
             "thresholdsStyle": {
-              "mode": "off"
+              "mode": "dashed"
             }
           },
           "mappings": [],
@@ -226,8 +226,12 @@
                 "color": "green"
               },
               {
+                "color": "#EAB839",
+                "value": 2000
+              },
+              {
                 "color": "red",
-                "value": 80
+                "value": 4000
               }
             ]
           },
@@ -249,6 +253,9 @@
           "placement": "bottom",
           "showLegend": true
         },
+        "timezone": [
+          "utc"
+        ],
         "tooltip": {
           "hideZeros": false,
           "mode": "all",
@@ -484,6 +491,9 @@
           "placement": "bottom",
           "showLegend": true
         },
+        "timezone": [
+          "utc"
+        ],
         "tooltip": {
           "hideZeros": false,
           "mode": "all",
