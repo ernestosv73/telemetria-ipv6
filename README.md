@@ -1,7 +1,7 @@
 # Telemetría aplicada a la automatización de seguridad en redes IPv6 con Containerlab
 ---
 <div align=center markdown>
-<a href="https://codespaces.new/ernestosv73/nokia24?quickstart=1">
+<a href="https://codespaces.new/ernestosv73/telemetria-ipv6?quickstart=1">
 <img src="https://gitlab.com/rdodin/pics/-/wikis/uploads/d78a6f9f6869b3ac3c286928dd52fa08/run_in_codespaces-v1.svg?sanitize=true" style="width:50%"/></a>
 
 **[Run](https://codespaces.new/ernestosv73/telemetria-ipv6?quickstart=1) this lab in GitHub Codespaces for free**.  
