@@ -125,7 +125,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "$DS_PROMETHEUS"
+        "uid": "ds-prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -212,7 +212,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "$DS_PROMETHEUS"
+        "uid": "ds-prometheus"
       },
       "fieldConfig": {
         "defaults": {
