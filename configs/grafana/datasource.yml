@@ -5,11 +5,13 @@ datasources:
   - name: Prometheus
     type: prometheus
     url: http://prometheus:9090
+    uid: DS_PROMETHEUS
   
   - name: MAC IPv6 Bindings
     type: elasticsearch
     access: proxy
     url: http://172.80.80.9:9200
+    uid: DS_ELASTIC
     isDefault: false
     jsonData:
       index: '[mac-ipv6-]YYYY.MM.DD'
