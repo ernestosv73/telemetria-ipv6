@@ -5,7 +5,7 @@ datasources:
   - name: Prometheus
     type: prometheus
     url: http://prometheus:9090
-    uid: ds-prometheus
+    
       
   - name: MAC IPv6 Bindings
     type: elasticsearch
