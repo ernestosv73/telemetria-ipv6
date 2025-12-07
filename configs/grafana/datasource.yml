@@ -4,12 +4,10 @@ apiVersion: 1
 datasources:
   - name: Prometheus
     type: prometheus
-    uid: Prometheus
     url: http://prometheus:9090
   
   - name: MAC IPv6 Bindings
     type: elasticsearch
-    uid: MAC IPv6 Bindings
     access: proxy
     url: http://172.80.80.9:9200
     isDefault: false
