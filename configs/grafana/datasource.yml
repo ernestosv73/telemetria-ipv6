@@ -5,12 +5,8 @@ datasources:
   - name: Prometheus
     uid: "Prometheus"
     type: prometheus
-    access: proxy
     url: http://prometheus:9090
-    isDefault: true
-    jsonData:
-      httpMethod: GET
-    
+        
       
   - name: MAC IPv6 Bindings
     uid: "MAC IPv6 Bindings"
