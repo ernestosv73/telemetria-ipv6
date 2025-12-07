@@ -40,7 +40,7 @@ topology:
     grafana:
       kind: linux
       mgmt-ipv4: 172.80.80.43
-      image: grafana/grafana:latest
+      image: grafana/grafana:12.0.2
       binds:
         
         - configs/grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yaml:ro
