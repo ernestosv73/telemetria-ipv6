@@ -24,7 +24,7 @@
     {
       "datasource": {
         "type": "elasticsearch",
-        "uid": "${DS_MAC_IPV6_BINDINGS}"
+        "uid": "MAC IPv6 Bindings"
       },
       "fieldConfig": {
         "defaults": {
@@ -127,7 +127,7 @@
           ],
           "datasource": {
             "type": "elasticsearch",
-            "uid": "${DS_MAC_IPV6_BINDINGS}"
+            "uid": "MAC IPv6 Bindings"
           },
           "metrics": [
             {
@@ -178,7 +178,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "Prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -288,7 +288,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "Prometheus"
           },
           "disableTextWrap": false,
           "editorMode": "builder",
@@ -305,7 +305,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "Prometheus"
           },
           "disableTextWrap": false,
           "editorMode": "builder",
@@ -322,7 +322,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "Prometheus"
           },
           "disableTextWrap": false,
           "editorMode": "builder",
@@ -343,7 +343,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "Prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -414,7 +414,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "Prometheus"
       },
       "fieldConfig": {
         "defaults": {
