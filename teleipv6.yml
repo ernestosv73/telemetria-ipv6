@@ -57,10 +57,7 @@ topology:
         GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
         GF_AUTH_ANONYMOUS: "true"
         GF_AUTH_OAUTH_AUTO_LOGIN: "true"
-        GF_SECURITY_DISABLE_INITIAL_ADMIN_CREATION: "true"
-        GF_USERS_ALLOW_SIGN_UP: "false"
-        GF_USERS_AUTO_ASSIGN_ORG: "true"
-        GF_USERS_AUTO_ASSIGN_ORG_ROLE: "Admin"
+        
      
     elastic:
       kind: linux
