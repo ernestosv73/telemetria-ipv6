@@ -4,7 +4,8 @@
       {
         "builtIn": 1,
         "datasource": {
-          "type": "grafana"
+          "type": "grafana",
+          "uid": "-- Grafana --"
         },
         "enable": true,
         "hide": true,
@@ -23,7 +24,7 @@
     {
       "datasource": {
         "type": "elasticsearch",
-        "uid": "$DS_ELASTIC"
+        "uid": "${DS_MAC_IPV6_BINDINGS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -41,31 +42,72 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green" },
-              { "color": "red", "value": 80 }
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
             ]
           }
         },
         "overrides": [
           {
-            "matcher": { "id": "byName", "options": "ipv6_global" },
-            "properties": [{ "id": "custom.width", "value": 254 }]
+            "matcher": {
+              "id": "byName",
+              "options": "ipv6_global"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 254
+              }
+            ]
           },
           {
-            "matcher": { "id": "byName", "options": "ipv6_link_local" },
-            "properties": [{ "id": "custom.width", "value": 200 }]
+            "matcher": {
+              "id": "byName",
+              "options": "ipv6_link_local"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 200
+              }
+            ]
           },
           {
-            "matcher": { "id": "byName", "options": "interface" },
-            "properties": [{ "id": "custom.width", "value": 121 }]
+            "matcher": {
+              "id": "byName",
+              "options": "interface"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 121
+              }
+            ]
           }
         ]
       },
-      "gridPos": { "h": 7, "w": 20, "x": 0, "y": 0 },
+      "gridPos": {
+        "h": 7,
+        "w": 20,
+        "x": 0,
+        "y": 0
+      },
       "id": 4,
       "options": {
         "cellHeight": "sm",
-        "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false },
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
         "showHeader": true,
         "sortBy": []
       },
@@ -77,15 +119,22 @@
             {
               "field": "@timestamp",
               "id": "2",
-              "settings": { "interval": "auto" },
+              "settings": {
+                "interval": "auto"
+              },
               "type": "date_histogram"
             }
           ],
           "datasource": {
             "type": "elasticsearch",
-            "uid": "$DS_ELASTIC"
+            "uid": "${DS_MAC_IPV6_BINDINGS}"
           },
-          "metrics": [{ "id": "1", "type": "logs" }],
+          "metrics": [
+            {
+              "id": "1",
+              "type": "logs"
+            }
+          ],
           "query": "",
           "refId": "A",
           "timeField": "@timestamp"
@@ -95,12 +144,19 @@
       "transformations": [
         {
           "id": "extractFields",
-          "options": { "delimiter": ",", "format": "auto", "source": "timestamp" }
+          "options": {
+            "delimiter": ",",
+            "format": "auto",
+            "source": "timestamp"
+          }
         },
         {
           "id": "organize",
           "options": {
             "excludeByName": {
+              "30": true,
+              "32": true,
+              "2025-07-06T03": true,
               "_id": true,
               "_index": true,
               "_source": true,
@@ -122,18 +178,164 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "$DS_PROMETHEUS"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 7 },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "dashed"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "#EAB839",
+                "value": 2000
+              },
+              {
+                "color": "red",
+                "value": 4000
+              }
+            ]
+          },
+          "unit": "pps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 7
+      },
       "id": 1,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "timezone": [
+          "utc"
+        ],
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "all",
+          "sort": "none"
+        }
+      },
       "pluginVersion": "12.0.2",
       "targets": [
-        { "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"1\"}", "legendFormat": "iface {{interface_interface_id}} RAGuard", "range": true, "refId": "A" },
-        { "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"2\"}", "legendFormat": "iface {{interface_interface_id}} DenyScan", "range": true, "refId": "B" },
-        { "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"3\"}", "legendFormat": "iface {{interface_interface_id}} DenyScan", "range": true, "refId": "C" },
-        { "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"4\"}", "legendFormat": "iface {{interface_interface_id}} DenyNSMulticast", "range": true, "refId": "D" },
-        { "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"5\"}", "legendFormat": "iface {{interface_interface_id}} DenyNAMulticast", "range": true, "refId": "E" },
-        { "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"100\"}", "legendFormat": "iface {{interface_interface_id}} DenyICMP6ALL", "range": true, "refId": "F" }
+        {
+          "editorMode": "code",
+          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"1\"}",
+          "legendFormat": "iface {{interface_interface_id}} RAGuard",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"2\"}",
+          "legendFormat": "iface {{interface_interface_id}} DenyScan",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "editorMode": "code",
+          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"3\"}",
+          "legendFormat": "iface {{interface_interface_id}} DenyScan",
+          "range": true,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"4\"}",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "iface {{interface_interface_id}} DenyNSMulticast",
+          "range": true,
+          "refId": "D",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"5\"}",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "iface {{interface_interface_id}} DenyNAMulticast",
+          "range": true,
+          "refId": "E",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "acl_interface_input_acl_filter_entry_statistics_matched_packets{entry_sequence_id=\"100\"}",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "iface {{interface_interface_id}} DenyICMP6ALL",
+          "range": true,
+          "refId": "F",
+          "useBackend": false
+        }
       ],
       "title": "Matched Packets por ACL Entry",
       "type": "timeseries"
@@ -141,27 +343,170 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "$DS_PROMETHEUS"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 15 },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "max": 2000,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "orange",
+                "value": 500
+              },
+              {
+                "color": "red",
+                "value": 1000
+              }
+            ]
+          },
+          "unit": "pps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 15
+      },
       "id": 2,
+      "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": true,
+        "showThresholdMarkers": true,
+        "sizing": "auto"
+      },
       "pluginVersion": "12.0.2",
       "targets": [
-        { "expr": "interface_statistics_in_multicast_packets", "legendFormat": "{{interface_interface_id}}", "refId": "D" }
+        {
+          "expr": "interface_statistics_in_multicast_packets",
+          "legendFormat": "{{interface_interface_id}}",
+          "refId": "D"
+        }
       ],
       "title": "Multicast Packets (por Interface)",
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "valueLabel": "interface_name"
+          }
+        }
+      ],
       "type": "gauge"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "$DS_PROMETHEUS"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 21 },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "orange",
+                "value": 70
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 21
+      },
       "id": 3,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "timezone": [
+          "utc"
+        ],
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "all",
+          "sort": "none"
+        }
+      },
       "pluginVersion": "12.0.2",
       "targets": [
-        { "expr": "platform_control_cpu_total_instant", "legendFormat": "{{source}}", "refId": "E" }
+        {
+          "expr": "platform_control_cpu_total_instant",
+          "legendFormat": "{{source}}",
+          "refId": "E"
+        }
       ],
       "title": "Platform CPU Usage (Instant)",
       "type": "timeseries"
@@ -172,22 +517,12 @@
   "schemaVersion": 41,
   "tags": [],
   "templating": {
-    "list": [
-      {
-        "name": "DS_PROMETHEUS",
-        "type": "datasource",
-        "query": "prometheus",
-        "refresh": 1
-      },
-      {
-        "name": "DS_ELASTIC",
-        "type": "datasource",
-        "query": "elasticsearch",
-        "refresh": 1
-      }
-    ]
+    "list": []
   },
-  "time": { "from": "now-6h", "to": "now" },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
   "timepicker": {},
   "timezone": "",
   "title": "Telemetría IPv6",
