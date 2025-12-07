@@ -42,8 +42,9 @@ topology:
       mgmt-ipv4: 172.80.80.43
       image: grafana/grafana:latest
       binds:
-        - configs/grafana/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yaml:ro
+        
         - configs/grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yaml:ro
+        - configs/grafana/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yaml:ro
         - configs/grafana/dashboards:/var/lib/grafana/dashboards
       ports:
         - 3000:3000
